@@ -20,7 +20,7 @@ Unity 2022.3.22f1
 
 ## UDON Behaviour
 1. Set some VRChat IDs to "Staffnames".
-2. Enter the Index (Text) corresponding to the number of players you want to record in "RecordNames".
+2. Enter the Name (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
 ![Staffnames](Images/StaffNames.png "StaffNames")
 ![RecordNames](Images/RecordNames.png "RecordNames")
 
