@@ -13,10 +13,19 @@ Unity 2022.3.22f1
 ![Construction of Data collection prefab](Images/DatacollectionPrefab.png "Datacollection")
 
 # How to use
+## Prefab set
 1. Clone or download this repository.
 2. Import the contents of this repository into your Unity project.
 3. Put the "Datacollection.prefab" to hierarchy.
-4. Set some VRChat IDs to "Staffnames" of Datacollection UDON Behaviour.
+
+## UDON Behaviour
+1. Set some VRChat IDs to "Staffnames".
+2. Enter the Index (Text) corresponding to the number of players you want to record in "RecordNames".
 ![Staffnames](Images/StaffNames.png "StaffNames")
 
+# Reference
+[VRChat内位置情報・アンケート収集解析ツールYAIBAの紹介](https://note.com/cocu_tan/n/n70972d7646bd)
+[YAIBA-VRC](https://note.com/cocu_tan/n/n70972d7646bd)
+
 # Acknowledgement
+This project was supported by MVP Lab.
