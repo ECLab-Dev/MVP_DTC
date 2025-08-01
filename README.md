@@ -1,6 +1,8 @@
 # MPV Lab
 At Metaverse Public (MVP) Lab, we view the metaverse as a society and conduct research on interesting phenomena occurring there. We also aim to establish research methods suitable for the metaverse.
 
+![MVP Logo](Images/MVP_Logo.png "Logo")
+
 # MVP_DTC
 Data collection system by MVP Lab
 
