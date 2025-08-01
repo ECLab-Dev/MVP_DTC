@@ -23,8 +23,7 @@ Unity 2022.3.22f1
 2. Enter the Name (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
 3. Enter the Value (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
 4. Set the button UI on the Agreebutton.
-  - Set the RecordAgree event of Data collection UDON Behaviour to the On Click event of the button UI.
-5.  
+5. Set the RecordAgree event of Data collection UDON Behaviour to the On Click event of the button UI.
 ![Staffnames](Images/StaffNames.png "StaffNames")
 ![RecordNames](Images/RecordNames.png "RecordNames")
 ![RecordValues](Images/RecordValues.png "RecordValues")
