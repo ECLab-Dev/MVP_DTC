@@ -1,3 +1,6 @@
+# MPV Lab
+At Metaverse Public (MVP) Lab, we view the metaverse as a society and conduct research on interesting phenomena occurring there. We also aim to establish research methods suitable for the metaverse.
+
 # MVP_DTC
 Data collection system by MVP Lab
 
@@ -13,3 +16,5 @@ Unity 2022.3.22f1
 3. Put the "Datacollection.prefab" to hierarchy.
 4. Set some VRChat IDs to "Staffnames" of Datacollection UDON Behaviour.
 ![Staffnames](Images/StaffNames.png "StaffNames")
+
+# Acknowledgement
