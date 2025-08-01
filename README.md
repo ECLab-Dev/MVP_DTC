@@ -22,9 +22,11 @@ Unity 2022.3.22f1
 1. Set some VRChat IDs to "Staffnames".
 2. Enter the Index (Text) corresponding to the number of players you want to record in "RecordNames".
 ![Staffnames](Images/StaffNames.png "StaffNames")
+![RecordNames](Images/RecordNames.png "RecordNames")
 
 # Reference
 [VRChat内位置情報・アンケート収集解析ツールYAIBAの紹介](https://note.com/cocu_tan/n/n70972d7646bd)
+<br>
 [YAIBA-VRC](https://note.com/cocu_tan/n/n70972d7646bd)
 
 # Acknowledgement
