@@ -22,9 +22,15 @@ Unity 2022.3.22f1
 1. Set some VRChat IDs to "Staffnames".
 2. Enter the Name (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
 3. Enter the Value (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
+4. Set the button UI on the Agreebutton.
+  - Set the RecordAgree event of Data collection UDON Behaviour to the On Click event of the button UI.
+5.  
 ![Staffnames](Images/StaffNames.png "StaffNames")
 ![RecordNames](Images/RecordNames.png "RecordNames")
 ![RecordValues](Images/RecordValues.png "RecordValues")
+
+## Place of log
+With the default settings, it will be output to the user folder (Exp. C:\Users\[USER NAME]\AppData\LocalLow\VRChat\VRChat).
 
 # Reference
 [VRChat内位置情報・アンケート収集解析ツールYAIBAの紹介](https://note.com/cocu_tan/n/n70972d7646bd)
