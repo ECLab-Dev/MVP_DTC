@@ -47,7 +47,9 @@ Unity 2022.3.22f1
 
 ## Place of log
 With the default settings, it will be output to the user folder (Exp. C:\Users\[USER NAME]\AppData\LocalLow\VRChat\VRChat).
+
 The default structure of log data is as follows:
+
 [VRChat ID]: [Index]: [Head angular (yaw, pitch roll)] : [Avatar angular (yaw, pitch roll)] : [AVatar position]: [mm/dd/yyyy HH:MM:SS: milisec]
 
 # Reference
