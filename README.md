@@ -29,7 +29,6 @@ Unity 2022.3.22f1
 1. Set some VRChat IDs to "Staffnames".
 2. Enter the Name (Text) under the Index corresponding to the number of players you want to record in "RecordNames" (max 30 number).
 3. Enter the Value (Text) under the Index corresponding to the number of players you want to record in "RecordValues" (max 30 number).
->>>>>>> f453fa17ee18fee6c092c1e28761ff1cc89bdf6f
 4. Set the button UI on the Agreebutton.
 5. Set the RecordAgree event of Data collection UDON Behaviour to the On Click event of the button UI.
 ![Staffnames](Images/StaffNames.png "StaffNames")
