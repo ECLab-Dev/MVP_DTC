@@ -19,7 +19,7 @@ Unity 2022.3.22f1
 3. Put the "MVP_DTC.prefab" (./MVP_DTC/Prefabs) to hierarchy.
 
 ## UDON Behaviour
-# Datacollection
+### Datacollection
 1. Set some VRChat IDs to "Staffnames".
 2. Enter the Name (Text) under the Index corresponding to the number of players you want to record in "RecordNames" (max 30 number).
 3. Enter the Value (Text) under the Index corresponding to the number of players you want to record in "RecordNames" (max 30 number).
