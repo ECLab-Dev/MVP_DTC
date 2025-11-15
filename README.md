@@ -18,12 +18,6 @@ Unity 2022.3.22f1
 2. Import the contents of this repository into your Unity project.
 3. Put the "Datacollection.prefab" to hierarchy.
 
-<<<<<<< HEAD
-## UDON Behaviour
-1. Set some VRChat IDs to "Staffnames".
-2. Enter the Name (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
-3. Enter the Value (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
-=======
 ## UDON Behaviour (Datacollection)
 ### Main custom
 1. Set some VRChat IDs to "Staffnames".
