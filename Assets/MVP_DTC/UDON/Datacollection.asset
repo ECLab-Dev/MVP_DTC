@@ -26,46 +26,44 @@ MonoBehaviour:
     null\r\n    __instance_0: %SystemStringArray, null\r\n    __Boolean_1: %SystemBoolean,
     null\r\n    __instance_3: %VRCUdonUdonBehaviour, this\r\n    __eventName_0: %SystemString,
     null\r\n    __delaySeconds_0: %SystemSingle, null\r\n    __eventTiming_0: %VRCUdonCommonEnumsEventTiming,
-    null\r\n    __instance_4: %VRCUdonUdonBehaviour, this\r\n    __eventName_1: %SystemString,
-    null\r\n    __delaySeconds_1: %SystemSingle, null\r\n    __eventTiming_1: %VRCUdonCommonEnumsEventTiming,
     null\r\n    __player_0: %VRCSDKBaseVRCPlayerApi, null\r\n    __obj_0: %UnityEngineGameObject,
-    this\r\n    __Boolean_2: %SystemBoolean, null\r\n    __instance_5: %UnityEngineUIButton,
+    this\r\n    __Boolean_2: %SystemBoolean, null\r\n    __instance_4: %UnityEngineUIButton,
     null\r\n    __value_0: %SystemBoolean, null\r\n    __Boolean_3: %SystemBoolean,
-    null\r\n    __instance_6: %VRCUdonUdonBehaviour, this\r\n    __eventName_2: %SystemString,
-    null\r\n    __instance_7: %SystemInt32Array, null\r\n    __value_1: %SystemObject,
-    null\r\n    __index_2: %SystemInt32, null\r\n    __instance_8: %VRCSDKBaseVRCPlayerApi,
+    null\r\n    __instance_5: %VRCUdonUdonBehaviour, this\r\n    __eventName_1: %SystemString,
+    null\r\n    __instance_6: %SystemInt32Array, null\r\n    __value_1: %SystemObject,
+    null\r\n    __index_2: %SystemInt32, null\r\n    __instance_7: %VRCSDKBaseVRCPlayerApi,
     null\r\n    __Int32_0: %SystemInt32, null\r\n    __Int32_1: %SystemInt32, null\r\n   
-    __instance_9: %VRCUdonUdonBehaviour, this\r\n    __player_1: %VRCSDKBaseVRCPlayerApi,
+    __instance_8: %VRCUdonUdonBehaviour, this\r\n    __player_1: %VRCSDKBaseVRCPlayerApi,
     null\r\n    __obj_1: %UnityEngineGameObject, this\r\n    __index_3: %SystemInt32,
     null\r\n    __condition_1: %SystemBoolean, null\r\n    __Boolean_4: %SystemBoolean,
     null\r\n    __Int32_2: %SystemInt32, null\r\n    __Int32_3: %SystemInt32, null\r\n   
-    __instance_A: %VRCSDKBaseVRCPlayerApi, null\r\n    onPlayerLeftPlayer: %VRCSDKBaseVRCPlayerApi,
-    null\r\n    __instance_B: %SystemInt32Array, null\r\n    __index_4: %SystemInt32,
+    __instance_9: %VRCSDKBaseVRCPlayerApi, null\r\n    onPlayerLeftPlayer: %VRCSDKBaseVRCPlayerApi,
+    null\r\n    __instance_A: %SystemInt32Array, null\r\n    __index_4: %SystemInt32,
     null\r\n    __start_1: %SystemInt32, null\r\n    __end_1: %SystemInt32, null\r\n   
     __step_1: %SystemInt32, null\r\n    __Boolean_5: %SystemBoolean, null\r\n   
     __Boolean_6: %SystemBoolean, null\r\n    __Boolean_7: %SystemBoolean, null\r\n   
-    __Int32_4: %SystemInt32, null\r\n    __Int32_5: %SystemInt32, null\r\n    __instance_C:
+    __Int32_4: %SystemInt32, null\r\n    __Int32_5: %SystemInt32, null\r\n    __instance_B:
     %SystemInt32Array, null\r\n    __value_2: %SystemObject, null\r\n    __index_5:
-    %SystemInt32, null\r\n    __instance_D: %SystemInt32Array, null\r\n    __index_6:
+    %SystemInt32, null\r\n    __instance_C: %SystemInt32Array, null\r\n    __index_6:
     %SystemInt32, null\r\n    __Int32_6: %SystemInt32, null\r\n    __Int32_7: %SystemInt32,
     null\r\n    __Int32_8: %SystemInt32, null\r\n    __Int32_9: %SystemInt32, null\r\n   
-    __instance_E: %VRCUdonUdonBehaviour, this\r\n    __Boolean_8: %SystemBoolean,
+    __instance_D: %VRCUdonUdonBehaviour, this\r\n    __Boolean_8: %SystemBoolean,
     null\r\n    __index_7: %SystemInt32, null\r\n    __condition_2: %SystemBoolean,
-    null\r\n    __instance_F: %SystemInt32Array, null\r\n    __value_3: %SystemObject,
-    null\r\n    __index_8: %SystemInt32, null\r\n    __instance_10: %SystemInt32Array,
+    null\r\n    __instance_E: %SystemInt32Array, null\r\n    __value_3: %SystemObject,
+    null\r\n    __index_8: %SystemInt32, null\r\n    __instance_F: %SystemInt32Array,
     null\r\n    __index_9: %SystemInt32, null\r\n    __Int32_A: %SystemInt32, null\r\n   
     __Int32_B: %SystemInt32, null\r\n    __start_2: %SystemInt32, null\r\n    __end_2:
     %SystemInt32, null\r\n    __step_2: %SystemInt32, null\r\n    __Int32_C: %SystemInt32,
-    null\r\n    __Int32_D: %SystemInt32, null\r\n    __instance_11: %VRCUdonUdonBehaviour,
+    null\r\n    __Int32_D: %SystemInt32, null\r\n    __instance_10: %VRCUdonUdonBehaviour,
     this\r\n    __Boolean_9: %SystemBoolean, null\r\n    __Boolean_A: %SystemBoolean,
-    null\r\n    __instance_12: %UnityEngineUIText, null\r\n    __value_4: %SystemString,
-    null\r\n    __value_5: %SystemInt32, null\r\n    __instance_13: %VRCUdonUdonBehaviour,
-    this\r\n    __eventName_3: %SystemString, null\r\n    __index_A: %SystemInt32,
-    null\r\n    __condition_3: %SystemBoolean, null\r\n    __instance_14: %UnityEngineUIText,
-    null\r\n    __value_6: %SystemString, null\r\n    __instance_15: %UnityEngineUITextArray,
-    null\r\n    __index_B: %SystemInt32, null\r\n    __instance_16: %VRCSDKBaseVRCPlayerApi,
-    null\r\n    __instance_18: %UnityEngineUIText, null\r\n    __value_7: %SystemString,
-    null\r\n    __instance_19: %UnityEngineUITextArray, null\r\n    __index_D: %SystemInt32,
+    null\r\n    __instance_11: %UnityEngineUIText, null\r\n    __value_4: %SystemString,
+    null\r\n    __value_5: %SystemInt32, null\r\n    __instance_12: %VRCUdonUdonBehaviour,
+    this\r\n    __eventName_2: %SystemString, null\r\n    __index_A: %SystemInt32,
+    null\r\n    __condition_3: %SystemBoolean, null\r\n    __instance_13: %UnityEngineUIText,
+    null\r\n    __value_6: %SystemString, null\r\n    __instance_14: %UnityEngineUITextArray,
+    null\r\n    __index_B: %SystemInt32, null\r\n    __instance_15: %VRCSDKBaseVRCPlayerApi,
+    null\r\n    __instance_17: %UnityEngineUIText, null\r\n    __value_7: %SystemString,
+    null\r\n    __instance_18: %UnityEngineUITextArray, null\r\n    __index_D: %SystemInt32,
     null\r\n    __String_2: %SystemString, null\r\n    __String_3: %SystemString,
     null\r\n    __String_4: %SystemString, null\r\n    __String_5: %SystemString,
     null\r\n    __String_6: %SystemString, null\r\n    __String_7: %SystemString,
@@ -76,20 +74,20 @@ MonoBehaviour:
     null\r\n    __String_10: %SystemString, null\r\n    __String_11: %SystemString,
     null\r\n    __String_12: %SystemString, null\r\n    __String_13: %SystemString,
     null\r\n    __String_14: %SystemString, null\r\n    __String_15: %SystemString,
-    null\r\n    __instance_1A: %SystemInt32, null\r\n    __instance_1B: %UnityEngineVector3,
-    null\r\n    __instance_1C: %VRCSDKBaseVRCPlayerApi, null\r\n    __instance_1D:
-    %UnityEngineVector3, null\r\n    __instance_1E: %UnityEngineQuaternion, null\r\n   
-    __instance_1F: %VRCSDKBaseVRCPlayerApi, null\r\n    __tt_0: %UnityEngineHumanBodyBones,
-    null\r\n    __instance_20: %UnityEngineVector3, null\r\n    __instance_21: %UnityEngineQuaternion,
-    null\r\n    __instance_22: %VRCSDKBaseVRCPlayerApi, null\r\n    __playerId_0:
-    %SystemInt32, null\r\n    __instance_17: %SystemInt32Array, null\r\n    __index_C:
+    null\r\n    __instance_19: %SystemInt32, null\r\n    __instance_1A: %UnityEngineVector3,
+    null\r\n    __instance_1B: %VRCSDKBaseVRCPlayerApi, null\r\n    __instance_1C:
+    %UnityEngineVector3, null\r\n    __instance_1D: %UnityEngineQuaternion, null\r\n   
+    __instance_1E: %VRCSDKBaseVRCPlayerApi, null\r\n    __tt_0: %UnityEngineHumanBodyBones,
+    null\r\n    __instance_1F: %UnityEngineVector3, null\r\n    __instance_20: %UnityEngineQuaternion,
+    null\r\n    __instance_21: %VRCSDKBaseVRCPlayerApi, null\r\n    __playerId_0:
+    %SystemInt32, null\r\n    __instance_16: %SystemInt32Array, null\r\n    __index_C:
     %SystemInt32, null\r\n    __start_3: %SystemInt32, null\r\n    __end_3: %SystemInt32,
-    null\r\n    __step_3: %SystemInt32, null\r\n    __instance_23: %SystemDateTime,
-    null\r\n    __value_8: %SystemInt32, null\r\n    __instance_24: %SystemDateTime,
-    null\r\n    __instance_25: %UnityEngineUIText, null\r\n    __value_9: %SystemString,
-    null\r\n    __instance_26: %UnityEngineUITextArray, null\r\n    __index_E: %SystemInt32,
-    null\r\n    __instance_27: %UnityEngineUIText, null\r\n    __value_A: %SystemString,
-    null\r\n    __instance_28: %UnityEngineUITextArray, null\r\n    __index_F: %SystemInt32,
+    null\r\n    __step_3: %SystemInt32, null\r\n    __instance_22: %SystemDateTime,
+    null\r\n    __value_8: %SystemInt32, null\r\n    __instance_23: %SystemDateTime,
+    null\r\n    __instance_24: %UnityEngineUIText, null\r\n    __value_9: %SystemString,
+    null\r\n    __instance_25: %UnityEngineUITextArray, null\r\n    __index_E: %SystemInt32,
+    null\r\n    __instance_26: %UnityEngineUIText, null\r\n    __value_A: %SystemString,
+    null\r\n    __instance_27: %UnityEngineUITextArray, null\r\n    __index_F: %SystemInt32,
     null\r\n    __index_10: %SystemInt32, null\r\n    __condition_4: %SystemBoolean,
     null\r\n    __message_0: %SystemObject, null\r\n    __String_16: %SystemString,
     null\r\n    __String_17: %SystemString, null\r\n    __String_18: %SystemString,
@@ -103,38 +101,38 @@ MonoBehaviour:
     null\r\n    __String_27: %SystemString, null\r\n    __String_28: %SystemString,
     null\r\n    __String_29: %SystemString, null\r\n    __String_2A: %SystemString,
     null\r\n    __String_2B: %SystemString, null\r\n    __String_2C: %SystemString,
-    null\r\n    __String_2D: %SystemString, null\r\n    __instance_29: %VRCSDKBaseVRCPlayerApi,
-    null\r\n    __instance_2B: %SystemInt32, null\r\n    __instance_2C: %UnityEngineVector3,
-    null\r\n    __instance_2D: %UnityEngineQuaternion, null\r\n    __instance_2E:
+    null\r\n    __String_2D: %SystemString, null\r\n    __instance_28: %VRCSDKBaseVRCPlayerApi,
+    null\r\n    __instance_2A: %SystemInt32, null\r\n    __instance_2B: %UnityEngineVector3,
+    null\r\n    __instance_2C: %UnityEngineQuaternion, null\r\n    __instance_2D:
     %VRCSDKBaseVRCPlayerApi, null\r\n    __tt_1: %UnityEngineHumanBodyBones, null\r\n   
-    __instance_2F: %UnityEngineVector3, null\r\n    __instance_30: %UnityEngineQuaternion,
-    null\r\n    __instance_31: %VRCSDKBaseVRCPlayerApi, null\r\n    __instance_32:
-    %UnityEngineVector3, null\r\n    __instance_33: %VRCSDKBaseVRCPlayerApi, null\r\n   
-    __playerId_1: %SystemInt32, null\r\n    __instance_2A: %SystemInt32Array, null\r\n   
+    __instance_2E: %UnityEngineVector3, null\r\n    __instance_2F: %UnityEngineQuaternion,
+    null\r\n    __instance_30: %VRCSDKBaseVRCPlayerApi, null\r\n    __instance_31:
+    %UnityEngineVector3, null\r\n    __instance_32: %VRCSDKBaseVRCPlayerApi, null\r\n   
+    __playerId_1: %SystemInt32, null\r\n    __instance_29: %SystemInt32Array, null\r\n   
     __index_11: %SystemInt32, null\r\n    __start_4: %SystemInt32, null\r\n    __end_4:
-    %SystemInt32, null\r\n    __step_4: %SystemInt32, null\r\n    __instance_34:
-    %SystemDateTime, null\r\n    __value_B: %SystemInt32, null\r\n    __instance_35:
-    %SystemDateTime, null\r\n    __instance_36: %VRCUdonUdonBehaviour, this\r\n   
-    __target_0: %VRCUdonCommonInterfacesNetworkEventTarget, null\r\n    __eventName_4:
+    %SystemInt32, null\r\n    __step_4: %SystemInt32, null\r\n    __instance_33:
+    %SystemDateTime, null\r\n    __value_B: %SystemInt32, null\r\n    __instance_34:
+    %SystemDateTime, null\r\n    __instance_35: %VRCUdonUdonBehaviour, this\r\n   
+    __target_0: %VRCUdonCommonInterfacesNetworkEventTarget, null\r\n    __eventName_3:
     %SystemString, null\r\n    __Boolean_B: %SystemBoolean, null\r\n    __Boolean_C:
     %SystemBoolean, null\r\n    __object_0: %SystemObject, null\r\n    __obj_2: %UnityEngineGameObject,
     this\r\n    __GameObject_0: %UnityEngineGameObject, this\r\n    __result_0: %SystemBoolean,
-    null\r\n    __instance_37: %UnityEngineUIText, null\r\n    __value_C: %SystemString,
-    null\r\n    __value_D: %SystemInt32, null\r\n    __instance_38: %VRCUdonUdonBehaviour,
-    this\r\n    __eventName_5: %SystemString, null\r\n    __Boolean_D: %SystemBoolean,
-    null\r\n    __instance_39: %VRCUdonUdonBehaviour, this\r\n    __eventName_6:
-    %SystemString, null\r\n    __instance_3A: %VRCUdonUdonBehaviour, this\r\n   
-    __instance_3B: %VRCUdonUdonBehaviour, this\r\n    __eventName_7: %SystemString,
-    null\r\n    __delaySeconds_2: %SystemSingle, null\r\n    __eventTiming_2: %VRCUdonCommonEnumsEventTiming,
-    null\r\n    __instance_3C: %VRCUdonUdonBehaviour, this\r\n    __instance_3D:
+    null\r\n    __instance_36: %UnityEngineUIText, null\r\n    __value_C: %SystemString,
+    null\r\n    __value_D: %SystemInt32, null\r\n    __instance_37: %VRCUdonUdonBehaviour,
+    this\r\n    __eventName_4: %SystemString, null\r\n    __Boolean_D: %SystemBoolean,
+    null\r\n    __instance_38: %VRCUdonUdonBehaviour, this\r\n    __eventName_5:
+    %SystemString, null\r\n    __instance_39: %VRCUdonUdonBehaviour, this\r\n   
+    __instance_3A: %VRCUdonUdonBehaviour, this\r\n    __eventName_6: %SystemString,
+    null\r\n    __delaySeconds_1: %SystemSingle, null\r\n    __eventTiming_1: %VRCUdonCommonEnumsEventTiming,
+    null\r\n    __instance_3B: %VRCUdonUdonBehaviour, this\r\n    __instance_3C:
+    %VRCUdonUdonBehaviour, this\r\n    __eventName_7: %SystemString, null\r\n   
+    __delaySeconds_2: %SystemSingle, null\r\n    __eventTiming_2: %VRCUdonCommonEnumsEventTiming,
+    null\r\n    __instance_3D: %VRCUdonUdonBehaviour, this\r\n    __instance_3E:
     %VRCUdonUdonBehaviour, this\r\n    __eventName_8: %SystemString, null\r\n   
     __delaySeconds_3: %SystemSingle, null\r\n    __eventTiming_3: %VRCUdonCommonEnumsEventTiming,
-    null\r\n    __instance_3E: %VRCUdonUdonBehaviour, this\r\n    __instance_3F:
+    null\r\n    __instance_3F: %VRCUdonUdonBehaviour, this\r\n    __instance_40:
     %VRCUdonUdonBehaviour, this\r\n    __eventName_9: %SystemString, null\r\n   
     __delaySeconds_4: %SystemSingle, null\r\n    __eventTiming_4: %VRCUdonCommonEnumsEventTiming,
-    null\r\n    __instance_40: %VRCUdonUdonBehaviour, this\r\n    __instance_41:
-    %VRCUdonUdonBehaviour, this\r\n    __eventName_A: %SystemString, null\r\n   
-    __delaySeconds_5: %SystemSingle, null\r\n    __eventTiming_5: %VRCUdonCommonEnumsEventTiming,
     null\r\n    StaffNames: %SystemStringArray, null\r\n    StaffBool: %SystemBoolean,
     null\r\n    CurrentIndex: %SystemInt32, null\r\n    RecordIndex: %SystemInt32Array,
     null\r\n    RecordNames: %UnityEngineUITextArray, null\r\n    RecordValues: %UnityEngineUITextArray,
@@ -147,7 +145,7 @@ MonoBehaviour:
     __end_0\r\n        EXTERN, \"SystemStringArray.__get_Length__SystemInt32\"\r\n       
     PUSH, __start_0\r\n        PUSH, __index_0\r\n        COPY\r\n        PUSH, __index_0\r\n       
     PUSH, __end_0\r\n        PUSH, __condition_0\r\n        EXTERN, \"SystemInt32.__op_LessThan__SystemInt32_SystemInt32__SystemBoolean\"\r\n       
-    PUSH, __condition_0\r\n        JUMP_IF_FALSE, 0x000001B8\r\n        PUSH, __instance_1\r\n       
+    PUSH, __condition_0\r\n        JUMP_IF_FALSE, 0x00000168\r\n        PUSH, __instance_1\r\n       
     EXTERN, \"VRCSDKBaseNetworking.__get_LocalPlayer__VRCSDKBaseVRCPlayerApi\"\r\n       
     PUSH, __instance_1\r\n        PUSH, __String_0\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__get_displayName__SystemString\"\r\n       
     PUSH, StaffNames\r\n        PUSH, __instance_2\r\n        COPY\r\n        PUSH,
@@ -156,256 +154,254 @@ MonoBehaviour:
     __index_1\r\n        PUSH, __String_1\r\n        EXTERN, \"SystemStringArray.__GetValue__SystemInt32__SystemObject\"\r\n       
     PUSH, __String_0\r\n        PUSH, __String_1\r\n        PUSH, __Boolean_0\r\n       
     EXTERN, \"SystemString.__op_Equality__SystemString_SystemString__SystemBoolean\"\r\n       
-    PUSH, __Boolean_0\r\n        JUMP_IF_FALSE, 0x00000168\r\n        PUSH, __Boolean_1\r\n       
-    PUSH, StaffBool\r\n        COPY\r\n        PUSH, __instance_3\r\n        PUSH,
-    __eventName_0\r\n        PUSH, __delaySeconds_0\r\n        PUSH, __eventTiming_0\r\n       
-    EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid\"\r\n       
-    JUMP, 0x00000190\r\n        PUSH, __instance_4\r\n        PUSH, __eventName_1\r\n       
-    PUSH, __delaySeconds_1\r\n        PUSH, __eventTiming_1\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid\"\r\n       
-    PUSH, __index_0\r\n        PUSH, __step_0\r\n        PUSH, __index_0\r\n       
-    EXTERN, \"SystemInt32.__op_Addition__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    JUMP, 0x00000040\r\n        JUMP, 0xFFFFFFFC\r\n    \r\n    .export RecordAgree\r\n   
-    \r\n    RecordAgree:\r\n    \r\n        PUSH, __player_0\r\n        EXTERN, \"VRCSDKBaseNetworking.__get_LocalPlayer__VRCSDKBaseVRCPlayerApi\"\r\n       
+    PUSH, __Boolean_0\r\n        JUMP_IF_FALSE, 0x00000140\r\n        PUSH, __Boolean_1\r\n       
+    PUSH, StaffBool\r\n        COPY\r\n        JUMP, 0x00000140\r\n        PUSH,
+    __index_0\r\n        PUSH, __step_0\r\n        PUSH, __index_0\r\n        EXTERN,
+    \"SystemInt32.__op_Addition__SystemInt32_SystemInt32__SystemInt32\"\r\n       
+    JUMP, 0x00000040\r\n        PUSH, __instance_3\r\n        PUSH, __eventName_0\r\n       
+    PUSH, __delaySeconds_0\r\n        PUSH, __eventTiming_0\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid\"\r\n       
+    JUMP, 0xFFFFFFFC\r\n    \r\n    .export RecordAgree\r\n    \r\n    RecordAgree:\r\n   
+    \r\n        PUSH, __player_0\r\n        EXTERN, \"VRCSDKBaseNetworking.__get_LocalPlayer__VRCSDKBaseVRCPlayerApi\"\r\n       
     PUSH, __player_0\r\n        PUSH, __obj_0\r\n        EXTERN, \"VRCSDKBaseNetworking.__SetOwner__VRCSDKBaseVRCPlayerApi_UnityEngineGameObject__SystemVoid\"\r\n       
     PUSH, __Boolean_2\r\n        PUSH, AgreeFlag\r\n        COPY\r\n        PUSH,
-    AgreeButton\r\n        PUSH, __instance_5\r\n        COPY\r\n        PUSH, __Boolean_3\r\n       
-    PUSH, __value_0\r\n        COPY\r\n        PUSH, __instance_5\r\n        PUSH,
+    AgreeButton\r\n        PUSH, __instance_4\r\n        COPY\r\n        PUSH, __Boolean_3\r\n       
+    PUSH, __value_0\r\n        COPY\r\n        PUSH, __instance_4\r\n        PUSH,
     __value_0\r\n        EXTERN, \"UnityEngineUIButton.__set_interactable__SystemBoolean__SystemVoid\"\r\n       
-    PUSH, __instance_6\r\n        PUSH, __eventName_2\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEvent__SystemString__SystemVoid\"\r\n       
+    PUSH, __instance_5\r\n        PUSH, __eventName_1\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEvent__SystemString__SystemVoid\"\r\n       
     JUMP, 0xFFFFFFFC\r\n    \r\n    .export IndexUpdate\r\n    \r\n    IndexUpdate:\r\n   
-    \r\n        PUSH, RecordIndex\r\n        PUSH, __instance_7\r\n        COPY\r\n       
-    PUSH, __instance_8\r\n        EXTERN, \"VRCSDKBaseNetworking.__get_LocalPlayer__VRCSDKBaseVRCPlayerApi\"\r\n       
-    PUSH, __instance_8\r\n        PUSH, __value_1\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__get_playerId__SystemInt32\"\r\n       
-    PUSH, __instance_7\r\n        PUSH, __value_1\r\n        PUSH, CurrentIndex\r\n       
+    \r\n        PUSH, RecordIndex\r\n        PUSH, __instance_6\r\n        COPY\r\n       
+    PUSH, __instance_7\r\n        EXTERN, \"VRCSDKBaseNetworking.__get_LocalPlayer__VRCSDKBaseVRCPlayerApi\"\r\n       
+    PUSH, __instance_7\r\n        PUSH, __value_1\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__get_playerId__SystemInt32\"\r\n       
+    PUSH, __instance_6\r\n        PUSH, __value_1\r\n        PUSH, CurrentIndex\r\n       
     EXTERN, \"SystemInt32Array.__SetValue__SystemObject_SystemInt32__SystemVoid\"\r\n       
     PUSH, CurrentIndex\r\n        PUSH, __Int32_1\r\n        PUSH, CurrentIndex\r\n       
     EXTERN, \"SystemInt32.__op_Addition__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    PUSH, __instance_9\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
+    PUSH, __instance_8\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
     JUMP, 0xFFFFFFFC\r\n    \r\n    .export _onPlayerLeft\r\n    \r\n    _onPlayerLeft:\r\n   
     \r\n        PUSH, __player_1\r\n        EXTERN, \"VRCSDKBaseNetworking.__get_Master__VRCSDKBaseVRCPlayerApi\"\r\n       
     PUSH, __player_1\r\n        PUSH, __obj_1\r\n        EXTERN, \"VRCSDKBaseNetworking.__SetOwner__VRCSDKBaseVRCPlayerApi_UnityEngineGameObject__SystemVoid\"\r\n       
     PUSH, __start_1\r\n        PUSH, __index_3\r\n        COPY\r\n        PUSH, __index_3\r\n       
     PUSH, CurrentIndex\r\n        PUSH, __condition_1\r\n        EXTERN, \"SystemInt32.__op_LessThan__SystemInt32_SystemInt32__SystemBoolean\"\r\n       
-    PUSH, __condition_1\r\n        JUMP_IF_FALSE, 0x00000458\r\n        PUSH, onPlayerLeftPlayer\r\n       
-    PUSH, __instance_A\r\n        COPY\r\n        PUSH, __instance_A\r\n        PUSH,
+    PUSH, __condition_1\r\n        JUMP_IF_FALSE, 0x00000430\r\n        PUSH, onPlayerLeftPlayer\r\n       
+    PUSH, __instance_9\r\n        COPY\r\n        PUSH, __instance_9\r\n        PUSH,
     __Int32_2\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__get_playerId__SystemInt32\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_B\r\n        COPY\r\n        PUSH,
-    __index_3\r\n        PUSH, __index_4\r\n        COPY\r\n        PUSH, __instance_B\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_A\r\n        COPY\r\n        PUSH,
+    __index_3\r\n        PUSH, __index_4\r\n        COPY\r\n        PUSH, __instance_A\r\n       
     PUSH, __index_4\r\n        PUSH, __Int32_3\r\n        EXTERN, \"SystemInt32Array.__GetValue__SystemInt32__SystemObject\"\r\n       
     PUSH, __Int32_2\r\n        PUSH, __Int32_3\r\n        PUSH, __Boolean_4\r\n       
     EXTERN, \"SystemInt32.__op_Equality__SystemInt32_SystemInt32__SystemBoolean\"\r\n       
-    PUSH, __Boolean_4\r\n        JUMP_IF_FALSE, 0x00000430\r\n        PUSH, __index_3\r\n       
+    PUSH, __Boolean_4\r\n        JUMP_IF_FALSE, 0x00000408\r\n        PUSH, __index_3\r\n       
     PUSH, temp_leftrawnum\r\n        COPY\r\n        PUSH, __Boolean_5\r\n       
-    PUSH, Leftbool\r\n        COPY\r\n        JUMP, 0x00000430\r\n        PUSH, __index_3\r\n       
+    PUSH, Leftbool\r\n        COPY\r\n        JUMP, 0x00000408\r\n        PUSH, __index_3\r\n       
     PUSH, __step_1\r\n        PUSH, __index_3\r\n        EXTERN, \"SystemInt32.__op_Addition__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    JUMP, 0x0000032C\r\n        PUSH, Leftbool\r\n        JUMP_IF_FALSE, 0x000006FC\r\n       
+    JUMP, 0x00000304\r\n        PUSH, Leftbool\r\n        JUMP_IF_FALSE, 0x000006D4\r\n       
     PUSH, CurrentIndex\r\n        PUSH, __Int32_7\r\n        PUSH, __Int32_4\r\n       
     EXTERN, \"SystemInt32.__op_Subtraction__SystemInt32_SystemInt32__SystemInt32\"\r\n       
     PUSH, __Int32_4\r\n        PUSH, temp_leftrawnum\r\n        PUSH, __Boolean_7\r\n       
     EXTERN, \"SystemInt32.__op_Equality__SystemInt32_SystemInt32__SystemBoolean\"\r\n       
-    PUSH, __Boolean_7\r\n        JUMP_IF_FALSE, 0x00000594\r\n        PUSH, RecordIndex\r\n       
-    PUSH, __instance_C\r\n        COPY\r\n        PUSH, RecordIndex\r\n        PUSH,
-    __instance_D\r\n        COPY\r\n        PUSH, __Int32_4\r\n        PUSH, __index_6\r\n       
-    COPY\r\n        PUSH, __instance_D\r\n        PUSH, __Int32_4\r\n        PUSH,
+    PUSH, __Boolean_7\r\n        JUMP_IF_FALSE, 0x0000056C\r\n        PUSH, RecordIndex\r\n       
+    PUSH, __instance_B\r\n        COPY\r\n        PUSH, RecordIndex\r\n        PUSH,
+    __instance_C\r\n        COPY\r\n        PUSH, __Int32_4\r\n        PUSH, __index_6\r\n       
+    COPY\r\n        PUSH, __instance_C\r\n        PUSH, __Int32_4\r\n        PUSH,
     __value_2\r\n        EXTERN, \"SystemInt32Array.__GetValue__SystemInt32__SystemObject\"\r\n       
-    PUSH, __Int32_4\r\n        PUSH, __index_5\r\n        COPY\r\n        PUSH, __instance_C\r\n       
+    PUSH, __Int32_4\r\n        PUSH, __index_5\r\n        COPY\r\n        PUSH, __instance_B\r\n       
     PUSH, __value_2\r\n        PUSH, __Int32_4\r\n        EXTERN, \"SystemInt32Array.__SetValue__SystemObject_SystemInt32__SystemVoid\"\r\n       
     PUSH, CurrentIndex\r\n        PUSH, __Int32_9\r\n        PUSH, CurrentIndex\r\n       
     EXTERN, \"SystemInt32.__op_Subtraction__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    PUSH, __instance_E\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
+    PUSH, __instance_D\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
     PUSH, __Boolean_8\r\n        PUSH, Leftbool\r\n        COPY\r\n        JUMP,
-    0x000006F4\r\n        PUSH, temp_leftrawnum\r\n        PUSH, __index_7\r\n       
+    0x000006CC\r\n        PUSH, temp_leftrawnum\r\n        PUSH, __index_7\r\n       
     COPY\r\n        PUSH, __index_7\r\n        PUSH, CurrentIndex\r\n        PUSH,
     __condition_2\r\n        EXTERN, \"SystemInt32.__op_LessThan__SystemInt32_SystemInt32__SystemBoolean\"\r\n       
-    PUSH, __condition_2\r\n        JUMP_IF_FALSE, 0x000006B0\r\n        PUSH, RecordIndex\r\n       
-    PUSH, __instance_F\r\n        COPY\r\n        PUSH, RecordIndex\r\n        PUSH,
-    __instance_10\r\n        COPY\r\n        PUSH, __index_7\r\n        PUSH, __Int32_A\r\n       
+    PUSH, __condition_2\r\n        JUMP_IF_FALSE, 0x00000688\r\n        PUSH, RecordIndex\r\n       
+    PUSH, __instance_E\r\n        COPY\r\n        PUSH, RecordIndex\r\n        PUSH,
+    __instance_F\r\n        COPY\r\n        PUSH, __index_7\r\n        PUSH, __Int32_A\r\n       
     COPY\r\n        PUSH, __Int32_A\r\n        PUSH, __Int32_B\r\n        PUSH, __index_9\r\n       
     EXTERN, \"SystemInt32.__op_Addition__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    PUSH, __instance_10\r\n        PUSH, __index_9\r\n        PUSH, __value_3\r\n       
+    PUSH, __instance_F\r\n        PUSH, __index_9\r\n        PUSH, __value_3\r\n       
     EXTERN, \"SystemInt32Array.__GetValue__SystemInt32__SystemObject\"\r\n       
-    PUSH, __index_7\r\n        PUSH, __index_8\r\n        COPY\r\n        PUSH, __instance_F\r\n       
+    PUSH, __index_7\r\n        PUSH, __index_8\r\n        COPY\r\n        PUSH, __instance_E\r\n       
     PUSH, __value_3\r\n        PUSH, __index_8\r\n        EXTERN, \"SystemInt32Array.__SetValue__SystemObject_SystemInt32__SystemVoid\"\r\n       
     PUSH, __index_7\r\n        PUSH, __step_2\r\n        PUSH, __index_7\r\n       
     EXTERN, \"SystemInt32.__op_Addition__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    JUMP, 0x000005A8\r\n        PUSH, CurrentIndex\r\n        PUSH, __Int32_D\r\n       
+    JUMP, 0x00000580\r\n        PUSH, CurrentIndex\r\n        PUSH, __Int32_D\r\n       
     PUSH, CurrentIndex\r\n        EXTERN, \"SystemInt32.__op_Subtraction__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    PUSH, __instance_11\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
+    PUSH, __instance_10\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
     PUSH, __Boolean_9\r\n        PUSH, Leftbool\r\n        COPY\r\n        JUMP,
-    0x000006FC\r\n        JUMP, 0xFFFFFFFC\r\n    \r\n    .export _onDeserialization\r\n   
+    0x000006D4\r\n        JUMP, 0xFFFFFFFC\r\n    \r\n    .export _onDeserialization\r\n   
     \r\n    _onDeserialization:\r\n    \r\n        PUSH, AgreeFlag\r\n        JUMP_IF_FALSE,
-    0x00000778\r\n        PUSH, IndexText\r\n        PUSH, __instance_12\r\n       
+    0x00000750\r\n        PUSH, IndexText\r\n        PUSH, __instance_11\r\n       
     COPY\r\n        PUSH, CurrentIndex\r\n        PUSH, __value_4\r\n        EXTERN,
-    \"SystemConvert.__ToString__SystemInt32__SystemString\"\r\n        PUSH, __instance_12\r\n       
+    \"SystemConvert.__ToString__SystemInt32__SystemString\"\r\n        PUSH, __instance_11\r\n       
     PUSH, __value_4\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
-    PUSH, __instance_13\r\n        PUSH, __eventName_3\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEvent__SystemString__SystemVoid\"\r\n       
-    JUMP, 0x00000778\r\n        JUMP, 0xFFFFFFFC\r\n    \r\n    .export SetRecords\r\n   
+    PUSH, __instance_12\r\n        PUSH, __eventName_2\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEvent__SystemString__SystemVoid\"\r\n       
+    JUMP, 0x00000750\r\n        JUMP, 0xFFFFFFFC\r\n    \r\n    .export SetRecords\r\n   
     \r\n    SetRecords:\r\n    \r\n        PUSH, __start_3\r\n        PUSH, __index_A\r\n       
     COPY\r\n        PUSH, __index_A\r\n        PUSH, CurrentIndex\r\n        PUSH,
     __condition_3\r\n        EXTERN, \"SystemInt32.__op_LessThan__SystemInt32_SystemInt32__SystemBoolean\"\r\n       
-    PUSH, __condition_3\r\n        JUMP_IF_FALSE, 0x00000CA0\r\n        PUSH, RecordNames\r\n       
-    PUSH, __instance_15\r\n        COPY\r\n        PUSH, __index_A\r\n        PUSH,
-    __index_B\r\n        COPY\r\n        PUSH, __instance_15\r\n        PUSH, __index_B\r\n       
-    PUSH, __instance_14\r\n        EXTERN, \"UnityEngineUITextArray.__GetValue__SystemInt32__SystemObject\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_17\r\n        COPY\r\n        PUSH,
-    __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __instance_17\r\n       
+    PUSH, __condition_3\r\n        JUMP_IF_FALSE, 0x00000C78\r\n        PUSH, RecordNames\r\n       
+    PUSH, __instance_14\r\n        COPY\r\n        PUSH, __index_A\r\n        PUSH,
+    __index_B\r\n        COPY\r\n        PUSH, __instance_14\r\n        PUSH, __index_B\r\n       
+    PUSH, __instance_13\r\n        EXTERN, \"UnityEngineUITextArray.__GetValue__SystemInt32__SystemObject\"\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_16\r\n        COPY\r\n        PUSH,
+    __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __instance_16\r\n       
     PUSH, __index_C\r\n        PUSH, __playerId_0\r\n        EXTERN, \"SystemInt32Array.__GetValue__SystemInt32__SystemObject\"\r\n       
-    PUSH, __playerId_0\r\n        PUSH, __instance_16\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetPlayerById__SystemInt32__VRCSDKBaseVRCPlayerApi\"\r\n       
-    PUSH, __instance_16\r\n        PUSH, __value_6\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__get_displayName__SystemString\"\r\n       
-    PUSH, __instance_14\r\n        PUSH, __value_6\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
-    PUSH, RecordValues\r\n        PUSH, __instance_19\r\n        COPY\r\n       
-    PUSH, __index_A\r\n        PUSH, __index_D\r\n        COPY\r\n        PUSH, __instance_19\r\n       
-    PUSH, __index_D\r\n        PUSH, __instance_18\r\n        EXTERN, \"UnityEngineUITextArray.__GetValue__SystemInt32__SystemObject\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_17\r\n        COPY\r\n        PUSH,
+    PUSH, __playerId_0\r\n        PUSH, __instance_15\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetPlayerById__SystemInt32__VRCSDKBaseVRCPlayerApi\"\r\n       
+    PUSH, __instance_15\r\n        PUSH, __value_6\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__get_displayName__SystemString\"\r\n       
+    PUSH, __instance_13\r\n        PUSH, __value_6\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
+    PUSH, RecordValues\r\n        PUSH, __instance_18\r\n        COPY\r\n       
+    PUSH, __index_A\r\n        PUSH, __index_D\r\n        COPY\r\n        PUSH, __instance_18\r\n       
+    PUSH, __index_D\r\n        PUSH, __instance_17\r\n        EXTERN, \"UnityEngineUITextArray.__GetValue__SystemInt32__SystemObject\"\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_16\r\n        COPY\r\n        PUSH,
     __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __playerId_0\r\n       
-    PUSH, __instance_1A\r\n        COPY\r\n        PUSH, __playerId_0\r\n       
+    PUSH, __instance_19\r\n        COPY\r\n        PUSH, __playerId_0\r\n       
     PUSH, __String_14\r\n        EXTERN, \"SystemInt32.__ToString__SystemString\"\r\n       
     PUSH, __String_14\r\n        PUSH, __String_15\r\n        PUSH, __String_12\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_17\r\n        COPY\r\n        PUSH,
-    __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __instance_16\r\n       
-    PUSH, __instance_1C\r\n        COPY\r\n        PUSH, __instance_16\r\n       
-    PUSH, __instance_1B\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetPosition__UnityEngineVector3\"\r\n       
-    PUSH, __instance_1B\r\n        PUSH, __String_13\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_16\r\n        COPY\r\n        PUSH,
+    __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __instance_15\r\n       
+    PUSH, __instance_1B\r\n        COPY\r\n        PUSH, __instance_15\r\n       
+    PUSH, __instance_1A\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetPosition__UnityEngineVector3\"\r\n       
+    PUSH, __instance_1A\r\n        PUSH, __String_13\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
     PUSH, __String_12\r\n        PUSH, __String_13\r\n        PUSH, __String_10\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_10\r\n        PUSH, __String_11\r\n        PUSH, __String_E\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_17\r\n        COPY\r\n        PUSH,
-    __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __instance_16\r\n       
-    PUSH, __instance_1F\r\n        COPY\r\n        PUSH, __instance_16\r\n       
-    PUSH, __tt_0\r\n        PUSH, __instance_1E\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetBoneRotation__UnityEngineHumanBodyBones__UnityEngineQuaternion\"\r\n       
-    PUSH, __instance_1E\r\n        PUSH, __instance_1D\r\n        EXTERN, \"UnityEngineQuaternion.__get_eulerAngles__UnityEngineVector3\"\r\n       
-    PUSH, __instance_1D\r\n        PUSH, __String_F\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_16\r\n        COPY\r\n        PUSH,
+    __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __instance_15\r\n       
+    PUSH, __instance_1E\r\n        COPY\r\n        PUSH, __instance_15\r\n       
+    PUSH, __tt_0\r\n        PUSH, __instance_1D\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetBoneRotation__UnityEngineHumanBodyBones__UnityEngineQuaternion\"\r\n       
+    PUSH, __instance_1D\r\n        PUSH, __instance_1C\r\n        EXTERN, \"UnityEngineQuaternion.__get_eulerAngles__UnityEngineVector3\"\r\n       
+    PUSH, __instance_1C\r\n        PUSH, __String_F\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
     PUSH, __String_E\r\n        PUSH, __String_F\r\n        PUSH, __String_C\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_C\r\n        PUSH, __String_D\r\n        PUSH, __String_A\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_17\r\n        COPY\r\n        PUSH,
-    __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __instance_16\r\n       
-    PUSH, __instance_22\r\n        COPY\r\n        PUSH, __instance_16\r\n       
-    PUSH, __instance_21\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetRotation__UnityEngineQuaternion\"\r\n       
-    PUSH, __instance_21\r\n        PUSH, __instance_20\r\n        EXTERN, \"UnityEngineQuaternion.__get_eulerAngles__UnityEngineVector3\"\r\n       
-    PUSH, __instance_20\r\n        PUSH, __String_B\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_16\r\n        COPY\r\n        PUSH,
+    __index_A\r\n        PUSH, __index_C\r\n        COPY\r\n        PUSH, __instance_15\r\n       
+    PUSH, __instance_21\r\n        COPY\r\n        PUSH, __instance_15\r\n       
+    PUSH, __instance_20\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetRotation__UnityEngineQuaternion\"\r\n       
+    PUSH, __instance_20\r\n        PUSH, __instance_1F\r\n        EXTERN, \"UnityEngineQuaternion.__get_eulerAngles__UnityEngineVector3\"\r\n       
+    PUSH, __instance_1F\r\n        PUSH, __String_B\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
     PUSH, __String_A\r\n        PUSH, __String_B\r\n        PUSH, __String_8\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_8\r\n        PUSH, __String_9\r\n        PUSH, __String_6\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, __instance_23\r\n        EXTERN, \"VRCSDKBaseNetworking.__GetNetworkDateTime__SystemDateTime\"\r\n       
-    PUSH, __instance_23\r\n        PUSH, __String_7\r\n        EXTERN, \"SystemDateTime.__ToString__SystemString\"\r\n       
+    PUSH, __instance_22\r\n        EXTERN, \"VRCSDKBaseNetworking.__GetNetworkDateTime__SystemDateTime\"\r\n       
+    PUSH, __instance_22\r\n        PUSH, __String_7\r\n        EXTERN, \"SystemDateTime.__ToString__SystemString\"\r\n       
     PUSH, __String_6\r\n        PUSH, __String_7\r\n        PUSH, __String_4\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_4\r\n        PUSH, __String_5\r\n        PUSH, __String_2\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, __instance_23\r\n        PUSH, __instance_24\r\n        COPY\r\n       
-    PUSH, __instance_23\r\n        PUSH, __value_8\r\n        EXTERN, \"SystemDateTime.__get_Millisecond__SystemInt32\"\r\n       
+    PUSH, __instance_22\r\n        PUSH, __instance_23\r\n        COPY\r\n       
+    PUSH, __instance_22\r\n        PUSH, __value_8\r\n        EXTERN, \"SystemDateTime.__get_Millisecond__SystemInt32\"\r\n       
     PUSH, __value_8\r\n        PUSH, __String_3\r\n        EXTERN, \"SystemConvert.__ToString__SystemInt32__SystemString\"\r\n       
     PUSH, __String_2\r\n        PUSH, __String_3\r\n        PUSH, __value_7\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, __instance_18\r\n        PUSH, __value_7\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
+    PUSH, __instance_17\r\n        PUSH, __value_7\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
     PUSH, __index_A\r\n        PUSH, __step_3\r\n        PUSH, __index_A\r\n       
     EXTERN, \"SystemInt32.__op_Addition__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    JUMP, 0x00000794\r\n        PUSH, RecordNames\r\n        PUSH, __instance_26\r\n       
-    COPY\r\n        PUSH, __instance_26\r\n        PUSH, CurrentIndex\r\n       
-    PUSH, __instance_25\r\n        EXTERN, \"UnityEngineUITextArray.__GetValue__SystemInt32__SystemObject\"\r\n       
-    PUSH, __instance_25\r\n        PUSH, __value_9\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
-    PUSH, RecordValues\r\n        PUSH, __instance_28\r\n        COPY\r\n       
-    PUSH, __instance_28\r\n        PUSH, CurrentIndex\r\n        PUSH, __instance_27\r\n       
+    JUMP, 0x0000076C\r\n        PUSH, RecordNames\r\n        PUSH, __instance_25\r\n       
+    COPY\r\n        PUSH, __instance_25\r\n        PUSH, CurrentIndex\r\n       
+    PUSH, __instance_24\r\n        EXTERN, \"UnityEngineUITextArray.__GetValue__SystemInt32__SystemObject\"\r\n       
+    PUSH, __instance_24\r\n        PUSH, __value_9\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
+    PUSH, RecordValues\r\n        PUSH, __instance_27\r\n        COPY\r\n       
+    PUSH, __instance_27\r\n        PUSH, CurrentIndex\r\n        PUSH, __instance_26\r\n       
     EXTERN, \"UnityEngineUITextArray.__GetValue__SystemInt32__SystemObject\"\r\n       
-    PUSH, __instance_27\r\n        PUSH, __value_A\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
+    PUSH, __instance_26\r\n        PUSH, __value_A\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
     JUMP, 0xFFFFFFFC\r\n    \r\n    .export SetLogs\r\n    \r\n    SetLogs:\r\n   
     \r\n        PUSH, __start_4\r\n        PUSH, __index_10\r\n        COPY\r\n       
     PUSH, __index_10\r\n        PUSH, CurrentIndex\r\n        PUSH, __condition_4\r\n       
     EXTERN, \"SystemInt32.__op_LessThan__SystemInt32_SystemInt32__SystemBoolean\"\r\n       
-    PUSH, __condition_4\r\n        JUMP_IF_FALSE, 0x000011F0\r\n        PUSH, RecordIndex\r\n       
-    PUSH, __instance_2A\r\n        COPY\r\n        PUSH, __index_10\r\n        PUSH,
-    __index_11\r\n        COPY\r\n        PUSH, __instance_2A\r\n        PUSH, __index_11\r\n       
+    PUSH, __condition_4\r\n        JUMP_IF_FALSE, 0x000011C8\r\n        PUSH, RecordIndex\r\n       
+    PUSH, __instance_29\r\n        COPY\r\n        PUSH, __index_10\r\n        PUSH,
+    __index_11\r\n        COPY\r\n        PUSH, __instance_29\r\n        PUSH, __index_11\r\n       
     PUSH, __playerId_1\r\n        EXTERN, \"SystemInt32Array.__GetValue__SystemInt32__SystemObject\"\r\n       
-    PUSH, __playerId_1\r\n        PUSH, __instance_29\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetPlayerById__SystemInt32__VRCSDKBaseVRCPlayerApi\"\r\n       
-    PUSH, __instance_29\r\n        PUSH, __String_2C\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__get_displayName__SystemString\"\r\n       
+    PUSH, __playerId_1\r\n        PUSH, __instance_28\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetPlayerById__SystemInt32__VRCSDKBaseVRCPlayerApi\"\r\n       
+    PUSH, __instance_28\r\n        PUSH, __String_2C\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__get_displayName__SystemString\"\r\n       
     PUSH, __String_2C\r\n        PUSH, __String_2D\r\n        PUSH, __String_2A\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_2A\r\n        COPY\r\n        PUSH,
+    PUSH, RecordIndex\r\n        PUSH, __instance_29\r\n        COPY\r\n        PUSH,
     __index_10\r\n        PUSH, __index_11\r\n        COPY\r\n        PUSH, __playerId_1\r\n       
-    PUSH, __instance_2B\r\n        COPY\r\n        PUSH, __playerId_1\r\n       
+    PUSH, __instance_2A\r\n        COPY\r\n        PUSH, __playerId_1\r\n       
     PUSH, __String_2B\r\n        EXTERN, \"SystemInt32.__ToString__SystemString\"\r\n       
     PUSH, __String_2A\r\n        PUSH, __String_2B\r\n        PUSH, __String_28\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_28\r\n        PUSH, __String_29\r\n        PUSH, __String_26\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_2A\r\n        COPY\r\n        PUSH,
-    __index_10\r\n        PUSH, __index_11\r\n        COPY\r\n        PUSH, __instance_29\r\n       
-    PUSH, __instance_2E\r\n        COPY\r\n        PUSH, __instance_29\r\n       
-    PUSH, __tt_1\r\n        PUSH, __instance_2D\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetBoneRotation__UnityEngineHumanBodyBones__UnityEngineQuaternion\"\r\n       
-    PUSH, __instance_2D\r\n        PUSH, __instance_2C\r\n        EXTERN, \"UnityEngineQuaternion.__get_eulerAngles__UnityEngineVector3\"\r\n       
-    PUSH, __instance_2C\r\n        PUSH, __String_27\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_29\r\n        COPY\r\n        PUSH,
+    __index_10\r\n        PUSH, __index_11\r\n        COPY\r\n        PUSH, __instance_28\r\n       
+    PUSH, __instance_2D\r\n        COPY\r\n        PUSH, __instance_28\r\n       
+    PUSH, __tt_1\r\n        PUSH, __instance_2C\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetBoneRotation__UnityEngineHumanBodyBones__UnityEngineQuaternion\"\r\n       
+    PUSH, __instance_2C\r\n        PUSH, __instance_2B\r\n        EXTERN, \"UnityEngineQuaternion.__get_eulerAngles__UnityEngineVector3\"\r\n       
+    PUSH, __instance_2B\r\n        PUSH, __String_27\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
     PUSH, __String_26\r\n        PUSH, __String_27\r\n        PUSH, __String_24\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_24\r\n        PUSH, __String_25\r\n        PUSH, __String_22\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_2A\r\n        COPY\r\n        PUSH,
-    __index_10\r\n        PUSH, __index_11\r\n        COPY\r\n        PUSH, __instance_29\r\n       
-    PUSH, __instance_31\r\n        COPY\r\n        PUSH, __instance_29\r\n       
-    PUSH, __instance_30\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetRotation__UnityEngineQuaternion\"\r\n       
-    PUSH, __instance_30\r\n        PUSH, __instance_2F\r\n        EXTERN, \"UnityEngineQuaternion.__get_eulerAngles__UnityEngineVector3\"\r\n       
-    PUSH, __instance_2F\r\n        PUSH, __String_23\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_29\r\n        COPY\r\n        PUSH,
+    __index_10\r\n        PUSH, __index_11\r\n        COPY\r\n        PUSH, __instance_28\r\n       
+    PUSH, __instance_30\r\n        COPY\r\n        PUSH, __instance_28\r\n       
+    PUSH, __instance_2F\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetRotation__UnityEngineQuaternion\"\r\n       
+    PUSH, __instance_2F\r\n        PUSH, __instance_2E\r\n        EXTERN, \"UnityEngineQuaternion.__get_eulerAngles__UnityEngineVector3\"\r\n       
+    PUSH, __instance_2E\r\n        PUSH, __String_23\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
     PUSH, __String_22\r\n        PUSH, __String_23\r\n        PUSH, __String_20\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_20\r\n        PUSH, __String_21\r\n        PUSH, __String_1E\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, RecordIndex\r\n        PUSH, __instance_2A\r\n        COPY\r\n        PUSH,
-    __index_10\r\n        PUSH, __index_11\r\n        COPY\r\n        PUSH, __instance_29\r\n       
-    PUSH, __instance_33\r\n        COPY\r\n        PUSH, __instance_29\r\n       
-    PUSH, __instance_32\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetPosition__UnityEngineVector3\"\r\n       
-    PUSH, __instance_32\r\n        PUSH, __String_1F\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
+    PUSH, RecordIndex\r\n        PUSH, __instance_29\r\n        COPY\r\n        PUSH,
+    __index_10\r\n        PUSH, __index_11\r\n        COPY\r\n        PUSH, __instance_28\r\n       
+    PUSH, __instance_32\r\n        COPY\r\n        PUSH, __instance_28\r\n       
+    PUSH, __instance_31\r\n        EXTERN, \"VRCSDKBaseVRCPlayerApi.__GetPosition__UnityEngineVector3\"\r\n       
+    PUSH, __instance_31\r\n        PUSH, __String_1F\r\n        EXTERN, \"UnityEngineVector3.__ToString__SystemString\"\r\n       
     PUSH, __String_1E\r\n        PUSH, __String_1F\r\n        PUSH, __String_1C\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_1C\r\n        PUSH, __String_1D\r\n        PUSH, __String_1A\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, __instance_34\r\n        EXTERN, \"VRCSDKBaseNetworking.__GetNetworkDateTime__SystemDateTime\"\r\n       
-    PUSH, __instance_34\r\n        PUSH, __String_1B\r\n        EXTERN, \"SystemDateTime.__ToString__SystemString\"\r\n       
+    PUSH, __instance_33\r\n        EXTERN, \"VRCSDKBaseNetworking.__GetNetworkDateTime__SystemDateTime\"\r\n       
+    PUSH, __instance_33\r\n        PUSH, __String_1B\r\n        EXTERN, \"SystemDateTime.__ToString__SystemString\"\r\n       
     PUSH, __String_1A\r\n        PUSH, __String_1B\r\n        PUSH, __String_18\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __String_18\r\n        PUSH, __String_19\r\n        PUSH, __String_16\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
-    PUSH, __instance_34\r\n        PUSH, __instance_35\r\n        COPY\r\n       
-    PUSH, __instance_34\r\n        PUSH, __value_B\r\n        EXTERN, \"SystemDateTime.__get_Millisecond__SystemInt32\"\r\n       
+    PUSH, __instance_33\r\n        PUSH, __instance_34\r\n        COPY\r\n       
+    PUSH, __instance_33\r\n        PUSH, __value_B\r\n        EXTERN, \"SystemDateTime.__get_Millisecond__SystemInt32\"\r\n       
     PUSH, __value_B\r\n        PUSH, __String_17\r\n        EXTERN, \"SystemConvert.__ToString__SystemInt32__SystemString\"\r\n       
     PUSH, __String_16\r\n        PUSH, __String_17\r\n        PUSH, __message_0\r\n       
     EXTERN, \"SystemString.__op_Addition__SystemString_SystemString__SystemString\"\r\n       
     PUSH, __message_0\r\n        EXTERN, \"UnityEngineDebug.__Log__SystemObject__SystemVoid\"\r\n       
     PUSH, __index_10\r\n        PUSH, __step_4\r\n        PUSH, __index_10\r\n       
     EXTERN, \"SystemInt32.__op_Addition__SystemInt32_SystemInt32__SystemInt32\"\r\n       
-    JUMP, 0x00000D54\r\n        JUMP, 0xFFFFFFFC\r\n    \r\n    .export _onPlayerJoined\r\n   
-    \r\n    _onPlayerJoined:\r\n    \r\n        PUSH, __instance_36\r\n        PUSH,
-    __target_0\r\n        PUSH, __eventName_4\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomNetworkEvent__VRCUdonCommonInterfacesNetworkEventTarget_SystemString__SystemVoid\"\r\n       
+    JUMP, 0x00000D2C\r\n        JUMP, 0xFFFFFFFC\r\n    \r\n    .export _onPlayerJoined\r\n   
+    \r\n    _onPlayerJoined:\r\n    \r\n        PUSH, __instance_35\r\n        PUSH,
+    __target_0\r\n        PUSH, __eventName_3\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomNetworkEvent__VRCUdonCommonInterfacesNetworkEventTarget_SystemString__SystemVoid\"\r\n       
     JUMP, 0xFFFFFFFC\r\n    \r\n    .export Sync\r\n    \r\n    Sync:\r\n    \r\n       
     PUSH, __Boolean_B\r\n        EXTERN, \"VRCSDKBaseNetworking.__get_IsMaster__SystemBoolean\"\r\n       
-    PUSH, __Boolean_B\r\n        JUMP_IF_FALSE, 0x00001248\r\n        JUMP, 0x00001248\r\n       
+    PUSH, __Boolean_B\r\n        JUMP_IF_FALSE, 0x00001220\r\n        JUMP, 0x00001220\r\n       
     JUMP, 0xFFFFFFFC\r\n    \r\n    .export LoopEvent\r\n    \r\n    LoopEvent:\r\n   
-    \r\n        PUSH, AgreeFlag\r\n        JUMP_IF_FALSE, 0x000013F8\r\n        PUSH,
+    \r\n        PUSH, AgreeFlag\r\n        JUMP_IF_FALSE, 0x000013D0\r\n        PUSH,
     __GameObject_0\r\n        PUSH, __obj_2\r\n        COPY\r\n        PUSH, __obj_2\r\n       
     PUSH, __object_0\r\n        EXTERN, \"VRCSDKBaseNetworking.__IsOwner__UnityEngineGameObject__SystemBoolean\"\r\n       
     PUSH, __object_0\r\n        PUSH, __result_0\r\n        EXTERN, \"VRCSDKBaseUtilities.__IsValid__SystemObject__SystemBoolean\"\r\n       
-    PUSH, __result_0\r\n        JUMP_IF_FALSE, 0x000013B8\r\n        PUSH, IndexText\r\n       
-    PUSH, __instance_37\r\n        COPY\r\n        PUSH, CurrentIndex\r\n       
+    PUSH, __result_0\r\n        JUMP_IF_FALSE, 0x00001390\r\n        PUSH, IndexText\r\n       
+    PUSH, __instance_36\r\n        COPY\r\n        PUSH, CurrentIndex\r\n       
     PUSH, __value_C\r\n        EXTERN, \"SystemConvert.__ToString__SystemInt32__SystemString\"\r\n       
-    PUSH, __instance_37\r\n        PUSH, __value_C\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
-    PUSH, __instance_38\r\n        PUSH, __eventName_5\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEvent__SystemString__SystemVoid\"\r\n       
-    PUSH, StaffBool\r\n        JUMP_IF_FALSE, 0x00001378\r\n        PUSH, __instance_39\r\n       
-    PUSH, __eventName_6\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEvent__SystemString__SystemVoid\"\r\n       
-    PUSH, __instance_3A\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
-    PUSH, __instance_3B\r\n        PUSH, __eventName_7\r\n        PUSH, __delaySeconds_2\r\n       
+    PUSH, __instance_36\r\n        PUSH, __value_C\r\n        EXTERN, \"UnityEngineUIText.__set_text__SystemString__SystemVoid\"\r\n       
+    PUSH, __instance_37\r\n        PUSH, __eventName_4\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEvent__SystemString__SystemVoid\"\r\n       
+    PUSH, StaffBool\r\n        JUMP_IF_FALSE, 0x00001350\r\n        PUSH, __instance_38\r\n       
+    PUSH, __eventName_5\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEvent__SystemString__SystemVoid\"\r\n       
+    PUSH, __instance_39\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
+    PUSH, __instance_3A\r\n        PUSH, __eventName_6\r\n        PUSH, __delaySeconds_1\r\n       
+    PUSH, __eventTiming_1\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid\"\r\n       
+    JUMP, 0x00001388\r\n        PUSH, __instance_3B\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
+    PUSH, __instance_3C\r\n        PUSH, __eventName_7\r\n        PUSH, __delaySeconds_2\r\n       
     PUSH, __eventTiming_2\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid\"\r\n       
-    JUMP, 0x000013B0\r\n        PUSH, __instance_3C\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
-    PUSH, __instance_3D\r\n        PUSH, __eventName_8\r\n        PUSH, __delaySeconds_3\r\n       
+    JUMP, 0x000013C8\r\n        PUSH, __instance_3D\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
+    PUSH, __instance_3E\r\n        PUSH, __eventName_8\r\n        PUSH, __delaySeconds_3\r\n       
     PUSH, __eventTiming_3\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid\"\r\n       
-    JUMP, 0x000013F0\r\n        PUSH, __instance_3E\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
-    PUSH, __instance_3F\r\n        PUSH, __eventName_9\r\n        PUSH, __delaySeconds_4\r\n       
+    JUMP, 0x00001408\r\n        PUSH, __instance_3F\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
+    PUSH, __instance_40\r\n        PUSH, __eventName_9\r\n        PUSH, __delaySeconds_4\r\n       
     PUSH, __eventTiming_4\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid\"\r\n       
-    JUMP, 0x00001430\r\n        PUSH, __instance_40\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__RequestSerialization__SystemVoid\"\r\n       
-    PUSH, __instance_41\r\n        PUSH, __eventName_A\r\n        PUSH, __delaySeconds_5\r\n       
-    PUSH, __eventTiming_5\r\n        EXTERN, \"VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid\"\r\n       
     JUMP, 0xFFFFFFFC\r\n    \r\n\r\n.code_end\r\n"
   assemblyError: 
   graphData:
@@ -451,6 +447,7 @@ MonoBehaviour:
       - 
       flowUIDs:
       - 9dbdb156-3847-4155-b8ac-d9353794c69e
+      - 2e5a76e9-6aa0-4cf7-b13a-cb22c900ee1f
       nodeValues:
       - unityObjectValue: {fileID: 0}
         stringValue: System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089|0
@@ -515,12 +512,12 @@ MonoBehaviour:
         stringValue: System.Int32, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089|0
     - fullName: Branch
       uid: 9dbdb156-3847-4155-b8ac-d9353794c69e
-      position: {x: -1025.1636, y: 881.1993}
+      position: {x: -1175.4592, y: 735.2048}
       nodeUIDs:
       - d7b4571e-36ee-44cb-9e6e-933a181f6d53|0
       flowUIDs:
       - 7156737e-6694-408b-ab12-9e2323ed3a05
-      - 2e5a76e9-6aa0-4cf7-b13a-cb22c900ee1f
+      - 
       nodeValues:
       - unityObjectValue: {fileID: 0}
         stringValue: System.Boolean, mscorlib, Version=4.0.0.0, Culture=neutral,
@@ -539,13 +536,13 @@ MonoBehaviour:
         stringValue: 
     - fullName: VRCSDKBaseNetworking.__get_LocalPlayer__VRCSDKBaseVRCPlayerApi
       uid: 5995b50e-c37d-4089-8021-297eee15d02c
-      position: {x: -1258.1635, y: 1059.1993}
+      position: {x: -1247.4202, y: 1023.29254}
       nodeUIDs: []
       flowUIDs: []
       nodeValues: []
     - fullName: VRCSDKBaseVRCPlayerApi.__get_displayName__SystemString
       uid: 75e32c77-9be2-4b4e-81b9-30623635c11f
-      position: {x: -1262.1636, y: 1144.1992}
+      position: {x: -1251.42, y: 1104.325}
       nodeUIDs:
       - 5995b50e-c37d-4089-8021-297eee15d02c|0
       flowUIDs: []
@@ -554,13 +551,13 @@ MonoBehaviour:
         stringValue: 
     - fullName: Set_Variable
       uid: 7156737e-6694-408b-ab12-9e2323ed3a05
-      position: {x: -868.74506, y: 638.00397}
+      position: {x: -945.0437, y: 665.37573}
       nodeUIDs:
       - 
       - 8d4c5e88-95b8-4cf7-afc4-5e470d978726|0
       - 
       flowUIDs:
-      - 3c574897-7285-44d4-a830-1ae333a21e03
+      - 
       nodeValues:
       - unityObjectValue: {fileID: 0}
         stringValue: System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089|8c3dbe01-a3dd-4445-bb4f-e8398b773aad
@@ -571,7 +568,7 @@ MonoBehaviour:
           PublicKeyToken=b77a5c561934e089|False
     - fullName: Const_SystemBoolean
       uid: 8d4c5e88-95b8-4cf7-afc4-5e470d978726
-      position: {x: -825.4979, y: 822.11127}
+      position: {x: -939.0657, y: 832.64606}
       nodeUIDs:
       - 
       flowUIDs: []
@@ -2350,25 +2347,6 @@ MonoBehaviour:
           PublicKeyToken=b77a5c561934e089|True
       - unityObjectValue: {fileID: 0}
         stringValue: System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089|none
-    - fullName: VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid
-      uid: 3c574897-7285-44d4-a830-1ae333a21e03
-      position: {x: -649.988, y: 649.512}
-      nodeUIDs:
-      - 
-      - 
-      - 
-      - 
-      flowUIDs: []
-      nodeValues:
-      - unityObjectValue: {fileID: 0}
-        stringValue: 
-      - unityObjectValue: {fileID: 0}
-        stringValue: System.String, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089|LoopEvent
-      - unityObjectValue: {fileID: 0}
-        stringValue: System.Single, mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089|1
-      - unityObjectValue: {fileID: 0}
-        stringValue: VRC.Udon.Common.Enums.EventTiming, VRC.Udon.Common, Version=1.0.0.0,
-          Culture=neutral, PublicKeyToken=null|Update
     - fullName: Event_Custom
       uid: f3f42a0b-f0cc-4c6e-b520-3a1bbc5631d6
       position: {x: -504.26688, y: 939.02374}
@@ -2450,7 +2428,7 @@ MonoBehaviour:
         stringValue: 
     - fullName: VRCUdonCommonInterfacesIUdonEventReceiver.__SendCustomEventDelayedSeconds__SystemString_SystemSingle_VRCUdonCommonEnumsEventTiming__SystemVoid
       uid: 2e5a76e9-6aa0-4cf7-b13a-cb22c900ee1f
-      position: {x: -858.28674, y: 988.49005}
+      position: {x: -938.5001, y: 939.7001}
       nodeUIDs:
       - 
       - 
