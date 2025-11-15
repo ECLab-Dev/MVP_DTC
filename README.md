@@ -16,12 +16,13 @@ Unity 2022.3.22f1
 ## Prefab set
 1. Clone or download this repository.
 2. Import the contents of this repository into your Unity project.
-3. Put the "Datacollection.prefab" to hierarchy.
+3. Put the "MVP_DTC.prefab" (./MVP_DTC/Prefabs) to hierarchy.
 
 ## UDON Behaviour
+# Datacollection
 1. Set some VRChat IDs to "Staffnames".
-2. Enter the Name (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
-3. Enter the Value (Text) under the Index corresponding to the number of players you want to record in "RecordNames".
+2. Enter the Name (Text) under the Index corresponding to the number of players you want to record in "RecordNames" (max 30 number).
+3. Enter the Value (Text) under the Index corresponding to the number of players you want to record in "RecordNames" (max 30 number).
 4. Set the button UI on the Agreebutton.
 5. Set the RecordAgree event of Data collection UDON Behaviour to the On Click event of the button UI.
 ![Staffnames](Images/StaffNames.png "StaffNames")
