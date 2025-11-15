@@ -16,7 +16,7 @@ Unity 2022.3.22f1
 ## Prefab set
 1. Clone or download this repository.
 2. Import the contents of this repository into your Unity project.
-3. Put the "Datacollection.prefab" to hierarchy.
+3. Put the "MVP_DTC.prefab" (./MVP_DTC/Prefabs) to hierarchy.
 
 ## UDON Behaviour (Datacollection)
 ### Main custom
