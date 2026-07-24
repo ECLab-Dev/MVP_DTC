@@ -12,7 +12,7 @@ Unity 2022.3.22f1
 
 ![Construction of Data collection prefab](Images/DatacollectionPrefab.png "Datacollection")
 
-# How to use
+# How to use (MVP_DTC)
 ## Prefab set
 1. Clone or download this repository.
 2. Import the contents of this repository into your Unity project.
@@ -44,7 +44,36 @@ With the default settings, it will be output to the user folder (Exp. C:\Users\[
 The default structure of log data is as follows:
 
 [VRChat ID]: [Index]: [Head angular (yaw, pitch roll)] : [Avatar angular (yaw, pitch roll)] : [AVatar position]: [mm/dd/yyyy HH:MM:SS: milisec]
+<!--
+# How to use (MVP_DTC_Online)
+## Server setting
+MVP_DTC_Online loads a user name file—equivalent to “Staffnames”—from a user-created external server. The system then loads the file containing the names of players to be tracked from the external server and records data only for specific players.
+The file that records “Staffnames” and player names follows the JSON format below:
 
+```json
+{
+  "PlayerNames": [
+    "NAME1",
+    "NAME2",
+    "NAME3",
+    "NAME4"
+  ],
+  "StaffNames": [
+    "Name1",
+    "Name2"
+  ]
+}
+```
+
+## Prefab set
+1. Clone or download this repository.
+2. Import the contents of this repository into your Unity project.
+3. Put the "MVP_DTC_Online.prefab" (./MVP_DTC/Prefabs) to hierarchy.
+
+## UDON Behaviour (Datacollection_Json)
+### Main custom
+1. Set “JsonURL” to an external server link that provides access to a JSON file containing “Staffnames” and the names of the players to be recorded.
+-->
 # Reference
 [VRChat内位置情報・アンケート収集解析ツールYAIBAの紹介](https://note.com/cocu_tan/n/n70972d7646bd)
 <br>
