@@ -129,6 +129,12 @@ The file that records “Staffnames” and player names follows the JSON format 
 2. Monitor player positions on the 2D radar and view real-time survey response cards via the dashboard.
 3. Upon closing VRChat, the application automatically aggregates the session logs and transmits them to your configured cloud storage endpoint.
 
+## 📝 Output Log Format
+Recorded periodically during movement tracking:
+```text
+[MVP_DTC] PlayerName: [ID]: (X, Y, Z): (Pitch, Yaw, Roll): (Vx, Vy, Vz): MM/DD/YYYY HH:mm:ss: Milliseconds
+```
+
 # MVP_Questionnaire
 `MVP_Questionnaire` is an automated in-world survey system built on UdonSharp (SDK3). It provides a full suite for administrators to broadcast surveys, monitor response rates in real-time, and collect structured responses directly inside VRChat worlds.
 ## 🌟 Key Features
@@ -156,7 +162,7 @@ Dedicated control panel interface for event hosts and administrators (`RecordMas
   - Disables the start button when 0 valid target respondents are present in the instance.
 ---
 
-![MVP_Questionnaire](Images/MVP_Questionnnaire.png "MVP_Questionnaire")
+![MVP_Questionnaire](Images/MVP_Questionnaire.png "MVP_Questionnaire")
 
 ## 🛠️ Setup & Usage
 ### 1. Unity UI Auto-Setup (`MVP_Questionnaire`)
@@ -171,6 +177,7 @@ Dedicated control panel interface for event hosts and administrators (`RecordMas
 Survey responses are recorded as structured log entries:
 ```text
 [MVP_Q] PlayerName: Q1: Did you enjoy the event?: Choice: Yes | Q2: Satisfaction: Rating: 5 | Q3: Comments: Text: Great experience!
+```
 
 # Reference
 [VRChat内位置情報・アンケート収集解析ツールYAIBAの紹介](https://note.com/cocu_tan/n/n70972d7646bd)
