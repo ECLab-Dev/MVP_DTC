@@ -190,6 +190,33 @@ public class SurveyManagerEditor : Editor
         Transform oldMaster = canvasObj.transform.Find("MasterControlPanel");
         if (oldMaster != null) DestroyImmediate(oldMaster.gameObject);
 
+        // 破棄前の残存参照による OdinSerializer エラーを防止するため一度参照クリア
+        manager.titleText = null;
+        manager.questionText = null;
+        manager.containerChoice = null;
+        manager.choiceButtons = new GameObject[6];
+        manager.choiceButtonTexts = new Text[6];
+        manager.containerRating = null;
+        manager.ratingSlider = null;
+        manager.ratingValueText = null;
+        manager.containerTextInput = null;
+        manager.inputFieldArea = null;
+        manager.containerConsent = null;
+        manager.consentNoticeDisplay = null;
+        manager.consentAgreeButton = null;
+        manager.consentDisagreeButton = null;
+        manager.surveyPanel = null;
+        manager.resultPanel = null;
+        manager.resultMessageText = null;
+        manager.masterControlPanel = null;
+        manager.masterStatusText = null;
+        manager.masterWarningText = null;
+        manager.startSurveyButton = null;
+        manager.resetSurveyButton = null;
+        manager.reopenSurveyButton = null;
+        manager.targetModeListButton = null;
+        manager.targetModeAllButton = null;
+
         Transform parentCanvas = canvasObj.transform;
 
         int qCount = (manager.questionTexts != null) ? manager.questionTexts.Length : 0;
