@@ -96,9 +96,9 @@ public class SurveyManager : UdonSharpBehaviour
     public Button targetModeAllButton;
 
     // ネットワーク同期変数
-    [UdonSynced] private string syncedAnsweredPlayers = "";
-    [UdonSynced] private string syncedLatestResultLog = "";
-    [UdonSynced] private bool syncedSurveyStarted = false;
+    [UdonSynced] private string syncedAnsweredPlayers = ""; 
+    [UdonSynced] private string syncedLatestResultLog = ""; 
+    [UdonSynced] private bool syncedSurveyStarted = false; 
     [UdonSynced] private bool syncedTargetAllMode = false; // false: リスト限定 (JsonNames), true: ワールド全員 (同意画面あり)
 
     // 内部状態変数
@@ -435,12 +435,12 @@ public class SurveyManager : UdonSharpBehaviour
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         if (localPlayer == null || !localPlayer.IsValid())
         {
-            if (cleanPName.Equals("LocalUser", System.StringComparison.OrdinalIgnoreCase)) return true;
+            if (cleanPName.ToLower() == "localuser") return true;
             if (allowedUserNames != null)
             {
                 for (int i = 0; i < allowedUserNames.Length; i++)
                 {
-                    if (allowedUserNames[i] != null && allowedUserNames[i].Trim().Equals(cleanPName, System.StringComparison.OrdinalIgnoreCase)) return true;
+                    if (allowedUserNames[i] != null && allowedUserNames[i].Trim().ToLower() == cleanPName.ToLower()) return true;
                 }
             }
             return false;
@@ -453,7 +453,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             if (players[i] != null && players[i].IsValid())
             {
-                if (players[i].displayName != null && players[i].displayName.Trim().Equals(cleanPName, System.StringComparison.OrdinalIgnoreCase)) return true;
+                if (players[i].displayName != null && players[i].displayName.Trim().ToLower() == cleanPName.ToLower()) return true;
             }
         }
         return false;
@@ -616,7 +616,7 @@ public class SurveyManager : UdonSharpBehaviour
 
             if (!string.IsNullOrEmpty(syncedAnsweredPlayers))
             {
-                string[] answeredArr = syncedAnsweredPlayers.Split(new char[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries);
+                string[] answeredArr = syncedAnsweredPlayers.Split(',');
                 for (int i = 0; i < answeredArr.Length; i++)
                 {
                     string aName = answeredArr[i].Trim();
@@ -872,7 +872,7 @@ public class SurveyManager : UdonSharpBehaviour
         if (startSurveyButton != null)
         {
             Text btnTxt = startSurveyButton.GetComponentInChildren<Text>();
-
+            
             // ワールド内に対象の一般プレイヤーが0名の場合は一斉開始ボタンを確実に非活性化
             if (presentCount == 0)
             {
@@ -963,7 +963,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             Debug.LogWarning("[SurveyManager] ボタン押下時: 対象プレイヤーがワールド内に存在しません。");
             if (masterControlPanel != null) masterControlPanel.SetActive(true);
-            return;
+            return; 
         }
 
         // 一斉開始フラグをセットして全員に同期
@@ -1118,7 +1118,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             VRCPlayerApi.TrackingData headData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
             Vector3 forwardDir = headData.rotation * Vector3.forward;
-
+            
             forwardDir.y = 0;
             if (forwardDir.sqrMagnitude > 0.001f)
             {
@@ -1500,7 +1500,7 @@ public class SurveyManager : UdonSharpBehaviour
                 {
                     for (int i = 0; i < targetNames.Length; i++)
                     {
-                        if (targetNames[i] != null && targetNames[i].Trim().Equals(cleanName, System.StringComparison.OrdinalIgnoreCase))
+                        if (targetNames[i] != null && targetNames[i].Trim().ToLower() == cleanName.ToLower())
                         {
                             return true;
                         }
@@ -1514,7 +1514,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             for (int i = 0; i < allowedUserNames.Length; i++)
             {
-                if (allowedUserNames[i] != null && allowedUserNames[i].Trim().Equals(cleanName, System.StringComparison.OrdinalIgnoreCase))
+                if (allowedUserNames[i] != null && allowedUserNames[i].Trim().ToLower() == cleanName.ToLower())
                 {
                     return true;
                 }
@@ -1548,7 +1548,7 @@ public class SurveyManager : UdonSharpBehaviour
                     hasTargetData = true;
                     for (int i = 0; i < targetNames.Length; i++)
                     {
-                        if (targetNames[i] != null && targetNames[i].Trim().Equals(cleanName, System.StringComparison.OrdinalIgnoreCase))
+                        if (targetNames[i] != null && targetNames[i].Trim().ToLower() == cleanName.ToLower())
                         {
                             return true;
                         }
@@ -1561,7 +1561,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             for (int i = 0; i < allowedUserNames.Length; i++)
             {
-                if (allowedUserNames[i] != null && allowedUserNames[i].Trim().Equals(cleanName, System.StringComparison.OrdinalIgnoreCase))
+                if (allowedUserNames[i] != null && allowedUserNames[i].Trim().ToLower() == cleanName.ToLower())
                 {
                     return true;
                 }
