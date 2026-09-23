@@ -246,7 +246,7 @@ JSON フォーマット例：
     ★ [MVP_DTC] PlayerName: 同意（データ記録対象に登録されました）
     ★ [MVP_DTC] PlayerName: 同意辞退（データ記録対象外）
     ```
-
+![Agree](Images/Agree.png "Agree")
 ---
 
 ## 参考文献
