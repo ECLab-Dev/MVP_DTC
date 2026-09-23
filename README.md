@@ -149,6 +149,7 @@ JSON フォーマット例：
 `MVP_Questionnaire` は、UdonSharp (SDK3) で動作する高機能なワールド内アンケートシステムです。主催者はワールド内からワンクリックでアンケートを一斉配信し、リアルタイムに回答状況を管理できます。
 
 ![MVP_Questionnaire](Images/MVP_Questionnaire.png "MVP_Questionnaire")
+![ManagerPanel](Images/ManagerPanel.png "ManagerPanel")
 
 ### 🌟 主な機能
 #### ① 3つの回答形式に対応
@@ -402,6 +403,7 @@ Standard output structure:
 `MVP_Questionnaire` is an automated in-world survey system built on UdonSharp (SDK3). It provides event organizers and researchers with full control over in-world survey distribution, response tracking, and structured logging.
 
 ![MVP_Questionnaire](Images/MVP_Questionnaire.png "MVP_Questionnaire")
+![ManagerPanel](Images/ManagerPanel.png "ManagerPanel")
 
 ### 🌟 Key Features
 #### ① 3 Question Formats
@@ -499,7 +501,7 @@ Tracking and position recording also mirror this two-tiered consent architecture
     ★ [MVP_DTC] PlayerName: 同意（データ記録対象に登録されました）
     ★ [MVP_DTC] PlayerName: 同意辞退（データ記録対象外）
     ```
-
+![Agree](Images/Agree.png "Agree")
 ---
 
 ## References
