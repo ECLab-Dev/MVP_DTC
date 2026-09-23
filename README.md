@@ -156,7 +156,15 @@ JSON フォーマット例：
 - **スライダー評価式 (Rating)**: 1〜N段階（例: 5段階満足度評価）のスライダーバー形式。
 - **記述回答式 (Text Input)**: VRChat内蔵キーボードを利用した自由記述入力（`InputField`）。
 
-#### ② 主催者専用マスターコントロールパネル (`RecordMaster`)
+#### ② 2つの同意・配信対象モード (コントロールパネルで即時切替可能)
+- **🎯 事前リスト方式 (事前同意連携 / `JsonNamesString`)**:
+  - Googleフォームや外部登録等で事前にアンケート参加・データ利用の同意を得たプレイヤー（`JsonNamesString`）のみを対象として配信。
+  - 事前に同意済みであるため、ワールド内での**同意確認画面はスキップ**され、即座に質問1から開始されます。
+- **🌐 ワールド全員方式 (インワールド同意確認画面)**:
+  - 事前リストを持たない場合や、パブリックイベント等で**インスタンス内の全員**（`RecordMaster` スタッフを除く）を対象に配信。
+  - アンケート開始時に**同意確認画面（同意する／同意しない）**が必ず表示され、参加者の同意意思をその場で取得します。
+
+#### ③ 主催者専用マスターコントロールパネル (`RecordMaster`)
 イベント主催者・管理者（`RecordMaster`）のみに操作パネルが表示されます：
 - **リアルタイム回答進捗**: 全体回答率、回答完了者一覧、未回答者一覧、途中退室者一覧を即時表示。
 - **📋 未回答者への再表示**: ウィンドウを閉じてしまった参加者や、途中入室者に対してワンクリックで再通知。
@@ -178,34 +186,53 @@ JSON フォーマット例：
 
 ## 4. ⚖️【重要】データ収集における同意取得と記録方法の違い
 
-研究倫理やプライバシーに配慮したデータ収集を行うため、本システムでは**「特定リスト（事前同意済み）方式」**と**「ワールド全員（その場での同意確認）方式」**という、記録アプローチの異なる2つのモードを提供しています。
+研究倫理やプライバシーに配慮したデータ収集を行うため、本システムでは**アンケート（`MVP_Questionnaire`）**および**位置・姿勢ログ（`MVP_DTC`）**の双方において、**「事前リスト方式（事前同意連携）」**と**「ワールド全員方式（インワールドその場での同意確認）」**という2つの記録アプローチを提供しています。
 
-### (1) アンケート (`MVP_Questionnaire`) における記録モードの違い
+### (1) アンケート (`MVP_Questionnaire`) における同意取得と記録方法の違い
 
 主催者コントロールパネル上またはインスペクターの初期設定で切り替え可能です：
 
 ```
 [ 配信対象モードの選択 ]
- ( ) リスト限定モード (JsonNames)  ── 事前同意済み・即時開始
- (*) ワールド全員モード (要同意確認) ── 同意画面を表示し分岐処理
+ ( ) リスト限定モード (JsonNames)  ── 事前リスト方式（外部事前同意済み・即時開始）
+ (*) ワールド全員モード (要同意確認) ── ワールド全員方式（インワールド同意画面・分岐処理）
 ```
 
-| 項目 | 🎯 リスト限定モード (`JsonNamesString`) | 🌐 ワールド全員モード (`All Instance Players`) |
+#### ① 事前リスト方式（Google Forms等との外部事前同意連携）
+- **仕組み**:
+  1. 参加者が事前に Google Forms やWebフォーム等で「アンケートへの参加同意」および「VRChatアカウント名」を送信。
+  2. 同意が確認されたプレイヤーのアカウント名一覧を JSON（GistやWebサーバー）または Udon変数（`JsonNamesString`）として連携。
+  3. VRChat内では、リストに登録された事前同意済みプレイヤーのみを対象としてアンケートが配信されます。
+- **記録方法と挙動**:
+  - 事前に同意が完了しているため、ワールド内での**同意確認画面はスキップ**され、配信開始と同時に**直ちに質問1が表示**されます。
+  - 回答完了時に `[MVP_Q]` ログとして記録・送信されます。
+
+#### ② ワールド全員方式（インワールドその場での同意確認）
+- **仕組み**:
+  - 事前同意リストが存在しない場合や、一般参加者が集まるオープンイベントにおいて、インスタンス内の全プレイヤー（`RecordMaster` スタッフを除く）を対象にアンケートを一斉配信します。
+- **記録方法と挙動**:
+  - アンケート開始時、参加者の画面にまず**【アンケート参加・データ収集に関する同意確認画面】**が表示されます。
+  - **「同意する」を押した場合**: 質問画面へと進み、全問回答後に `[MVP_Q]` ログとして記録されます。
+  - **「同意しない」を押した場合**: アンケート画面が直ちに閉じられ、質問には進まず安全に終了します。管理者側の集計パネルでは「回答済み（辞退）」としてカウントされ、進捗が正確に管理されます。
+
+#### 📊 アンケート同意方式の比較一覧
+| 項目 | 🎯 事前リスト方式 (`JsonNamesString`) | 🌐 ワールド全員方式 (`All Instance Players`) |
 | :--- | :--- | :--- |
-| **対象プレイヤー** | 外部JSONや変数に登録されたプレイヤーのみ | インスタンス内にいる全プレイヤー（`RecordMaster` スタッフを除く） |
-| **同意確認画面** | **スキップ**（表示されません） | **必ず表示**（「同意する」「同意しない」の2択） |
-| **回答の流れ** | 配信開始と同時に**問1から即座に開始** | ① 同意確認画面が表示される<br>② **「同意する」**: 問1へ進み回答<br>③ **「同意しない」**: 終了（回答せず閉じる） |
-| **記録・集計の違い** | 指定リストのプレイヤーの回答のみ集計・記録 | ・同意者の回答データを `[MVP_Q]` ログとして記録<br>・辞退者も「回答済み（辞退）」として集計カウントされ、管理者画面で把握可能 |
+| **対象プレイヤー** | 外部フォームで事前同意済みの登録プレイヤーのみ | インスタンス内にいる全プレイヤー（スタッフを除く） |
+| **同意取得のタイミング** | **ワールド入室前**（Googleフォーム / Webフォーム等） | **アンケート配信開始時**（ワールド内ポップアップ） |
+| **インワールド同意確認画面** | **スキップ**（表示されません） | **必ず表示**（「同意する」「同意しない」の2択） |
+| **参加者の画面遷移** | 配信開始と同時に**問1から即座に開始** | ① 同意確認画面が表示される<br>② **「同意する」**: 問1へ進み回答<br>③ **「同意しない」**: 終了（回答せず閉じる） |
+| **記録・集計の違い** | 事前同意リストのプレイヤーの回答のみ集計・記録 | ・同意者の回答データを `[MVP_Q]` ログとして記録<br>・辞退者も「回答済み（辞退）」として集計カウントされ、管理者画面で把握可能 |
 | **最適な用途** | 事前承諾を得ている被験者実験・指定グループ調査 | 一般参加者が自由に入退出するパブリックイベント・集会・オープン調査 |
 
-### (2) 位置・視線ログ (`MVP_DTC` / `MVP_DTC_Online`) における記録方法の違い
+### (2) 位置・視線ログ (`MVP_DTC` / `MVP_DTC_Online`) における同意取得と記録方法の違い
 
-アバターの移動・姿勢トラッキングでも、同意状況に応じた柔軟な記録方法を用意しています：
+アバターの移動・姿勢トラッキングでも、アンケートと同様に2つの同意・記録アプローチを用意しています：
 
 #### ① 事前リスト登録方式 (`PlayerNames` / `StaffNames`)
-- 外部サーバーの JSON（`PlayerNames`）や Udon 配列にあらかじめプレイヤーIDを設定しておく方式。
+- 外部サーバーの JSON（`PlayerNames`）や Udon 配列にあらかじめ同意済みプレイヤーIDを設定しておく方式。
 - 対象プレイヤーが入室している間、ワールド内の同意UIに触れることなくバックグラウンドで自動的に高精度ログが記録されます。
-- 事前に書面やWebフォーム等で研究参加同意を取得している学術実験に最適です。
+- 事前にGoogleフォームや書面等で研究参加同意を取得している学術実験に最適です。
 
 #### ② ワールド全員・その場での同意方式
 - **単体版 (`MVP_DTC.prefab`)**:  
@@ -382,7 +409,15 @@ Standard output structure:
 - **Rating Slider**: 1-to-N point Likert/satisfaction evaluation slider.
 - **Text Input**: Open-ended text response using the native VRChat virtual keyboard (`InputField`).
 
-#### ② Master Control Panel for Administrators (`RecordMaster`)
+#### ② Dual Consent & Distribution Modes (Toggleable via Control Panel)
+- **🎯 Pre-registered List Mode (Prior Consent Linkage / `JsonNamesString`)**:
+  - Broadcasts exclusively to participants who provided prior consent and registration (via Google Forms or external websites) linked through `JsonNamesString` or an external JSON URL.
+  - Since consent is verified beforehand, the **in-world consent screen is skipped**, and Question 1 begins immediately.
+- **🌐 All Instance Players Mode (In-World Consent Dialog)**:
+  - Broadcasts to **all players currently in the instance** (excluding `RecordMaster` staff) for open sessions without pre-registration.
+  - An **in-world consent confirmation dialog ("Agree" / "Disagree")** is mandatory at the beginning, confirming willingness to participate on the spot.
+
+#### ③ Master Control Panel for Administrators (`RecordMaster`)
 A specialized control panel interface accessible only by authorized hosts (`RecordMaster`):
 - **Real-Time Progress Monitoring**: Live response percentage, respondent breakdown (completed, pending, departed).
 - **📋 Re-display to Unanswered Players**: One-click prompt re-triggering for users who accidentally closed their dialog or joined late.
@@ -404,7 +439,7 @@ A specialized control panel interface accessible only by authorized hosts (`Reco
 
 ## 4. ⚖️【Key Feature】Consent Management & Data Collection Modes
 
-To satisfy research ethics and user privacy requirements, MVP_DTC provides two distinct data collection strategies: **Pre-registered List Mode** and **All Instance Players Mode (with In-World Consent)**.
+To satisfy research ethics and user privacy requirements, MVP_DTC provides two distinct data collection strategies for both **questionnaire surveys (`MVP_Questionnaire`)** and **spatial movement tracking (`MVP_DTC`)**: **Pre-registered List Mode (Prior Consent Linkage)** and **All Instance Players Mode (In-World Consent Confirmation)**.
 
 ### (1) Survey Consent Modes (`MVP_Questionnaire`)
 
@@ -412,21 +447,40 @@ Administrators can select the target mode either in the Inspector or directly vi
 
 ```
 [ Target Distribution Mode ]
- ( ) List-Restricted Mode (JsonNames) ── Pre-consented; skips consent screen
- (*) All Instance Players Mode       ── Prompts in-world consent screen
+ ( ) List-Restricted Mode (JsonNames) ── Pre-registered List Mode (Pre-consented; skips consent screen)
+ (*) All Instance Players Mode       ── All Players Mode (Mandatory in-world consent dialog)
 ```
 
-| Feature | 🎯 List-Restricted Mode (`JsonNamesString`) | 🌐 All Instance Players Mode (`All Instance Players`) |
+#### ① Pre-registered List Mode (External Prior Consent via Google Forms, etc.)
+- **How It Works**:
+  1. Participants submit prior consent along with their VRChat account name via Google Forms or external web questionnaires before joining the event.
+  2. The approved participant list is exported to JSON (e.g., via GitHub Gist) or assigned directly to the `JsonNamesString` Udon variable.
+  3. Inside VRChat, the survey is displayed only to these registered, pre-consented players.
+- **Flow & Behavior**:
+  - Because consent has already been obtained, the in-world **consent screen is completely skipped**, jumping straight to **Question 1**.
+  - Upon submission, responses are logged in structured format as `[MVP_Q]` entries.
+
+#### ② All Instance Players Mode (In-World On-the-Spot Consent)
+- **How It Works**:
+  - Broadcasts to all users in the instance (excluding `RecordMaster` staff) when no pre-registration list exists or for public community events.
+- **Flow & Behavior**:
+  - When the survey starts, participants are presented with an **in-world Consent Confirmation Screen** ("Agree" / "Disagree").
+  - **Selecting "Agree"**: The player proceeds to Question 1 and answers the questionnaire; results are recorded as `[MVP_Q]` logs.
+  - **Selecting "Disagree"**: The survey terminates cleanly and closes without showing questions. The administrator dashboard tallies them as "Declined" to maintain accurate progress tracking.
+
+#### 📊 Survey Consent Comparison
+| Feature | 🎯 Pre-registered List Mode (`JsonNamesString`) | 🌐 All Instance Players Mode (`All Instance Players`) |
 | :--- | :--- | :--- |
-| **Target Participants** | Only participants listed in external JSON / variables | All players currently in the instance (excluding `RecordMaster` staff) |
-| **Consent Confirmation** | **Skipped** (assumed pre-consented) | **Mandatory Prompt** ("Agree" / "Disagree" dialog) |
+| **Target Participants** | Only pre-consented players registered via external forms | All players currently in the instance (excluding staff) |
+| **Consent Timing** | **Prior to world entry** (Google Forms / Web registration) | **At survey broadcast start** (In-world dialog popup) |
+| **In-World Consent Screen** | **Skipped** (assumed pre-consented) | **Mandatory Prompt** ("Agree" / "Disagree" dialog) |
 | **User Flow** | Starts **immediately at Question 1** | ① Consent screen appears first<br>② **"Agree"**: Proceeds to Question 1<br>③ **"Disagree"**: Survey closes immediately |
 | **Logging & Tracking** | Only logs answers from pre-registered respondents | • Responses from consenting users recorded as `[MVP_Q]` logs<br>• Declining users are tracked as "Declined" in administrative metrics |
 | **Recommended Use Case** | Controlled lab experiments with prior written consent | Public gatherings, community events, and open surveys |
 
 ### (2) Movement & Tracking Consent Modes (`MVP_DTC` / `MVP_DTC_Online`)
 
-Tracking and position recording also respect user consent through two distinct mechanisms:
+Tracking and position recording also mirror this two-tiered consent architecture:
 
 #### ① Pre-registered Participant List (`PlayerNames` / `StaffNames`)
 - Tracks only users specified in the external JSON configuration or Inspector array.
