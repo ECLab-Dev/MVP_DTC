@@ -22,6 +22,30 @@ public class SurveyManagerEditor : Editor
         EditorGUILayout.HelpBox("【配信対象モード】\n・リスト限定: JsonNamesString の名簿プレイヤーのみを対象\n・ワールド全員: RecordMaster を除くインスタンス全員を対象 (初回に同意確認画面を表示)", MessageType.Info);
         EditorGUILayout.Space(5);
 
+        // 初期の配信対象モード設定ボックス
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("🎯 初期の配信対象モード設定 (初期状態)", EditorStyles.boldLabel);
+        string[] initialModeOptions = new string[] {
+            "🎯 リスト限定 (JsonNamesString)",
+            "🌐 ワールド全員 (同意確認画面・要同意)"
+        };
+        int newMode = EditorGUILayout.Popup("ワールド開始時の初期モード", manager.initialTargetMode, initialModeOptions);
+        if (newMode != manager.initialTargetMode)
+        {
+            manager.initialTargetMode = newMode;
+            EditorUtility.SetDirty(manager);
+        }
+        if (manager.initialTargetMode == 1)
+        {
+            EditorGUILayout.HelpBox("【ワールド全員】で開始します。\nワールド開始時から全員に同意確認画面が表示され、同意したプレイヤーのみデータが記録されます（リスト限定による未同意プレイヤーの誤記録を防止できます）。", MessageType.Info);
+        }
+        else
+        {
+            EditorGUILayout.HelpBox("【リスト限定】で開始します。\nJsonNamesStringに含まれるプレイヤーのみがデフォルト記録対象となります。", MessageType.None);
+        }
+        EditorGUILayout.EndVertical();
+        EditorGUILayout.Space(5);
+
         // 外部 UdonBehaviour / 変数設定ボックス
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("🔒 外部 UdonBehaviour 変数連携設定", EditorStyles.boldLabel);
@@ -41,8 +65,14 @@ public class SurveyManagerEditor : Editor
 
         EditorGUILayout.Space(5);
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("📜 ワールド全員モード時の同意確認文面", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("📜 アンケート ワールド全員モード時の同意確認文面", EditorStyles.boldLabel);
         manager.consentNoticeText = EditorGUILayout.TextArea(manager.consentNoticeText, GUILayout.Height(60));
+        EditorGUILayout.EndVertical();
+
+        EditorGUILayout.Space(5);
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("📜 DTC ワールド全員モード時の同意確認文面", EditorStyles.boldLabel);
+        manager.dtcConsentNoticeText = EditorGUILayout.TextArea(manager.dtcConsentNoticeText, GUILayout.Height(60));
         EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space(10);
@@ -120,6 +150,14 @@ public class SurveyManagerEditor : Editor
         }
         GUI.backgroundColor = Color.white;
 
+        EditorGUILayout.Space(5);
+        GUI.backgroundColor = new Color(0.2f, 0.6f, 0.9f);
+        if (GUILayout.Button("🛡️ コライダーの物理衝突を防止 (IsTrigger化)", GUILayout.Height(30)))
+        {
+            FixColliders(manager);
+        }
+        GUI.backgroundColor = Color.white;
+
         EditorGUILayout.Space(15);
         showAdvancedData = EditorGUILayout.Foldout(showAdvancedData, "内部データの直接参照 (デバッグ・UI自動参照用)");
         if (showAdvancedData)
@@ -175,9 +213,61 @@ public class SurveyManagerEditor : Editor
             canvasRt.localScale = new Vector3(0.002f, 0.002f, 0.002f);
         }
 
-        System.Type uiShapeType = System.Type.GetType("VRC.SDK3.Components.VRCUIShape, VRC.SDK3.Components")
-                               ?? System.Type.GetType("VRC.SDKBase.VRC_UI_Shape, VRC.SDKBase")
-                               ?? System.Type.GetType("VRC.SDKBase.VRCUIShape, VRC.SDKBase");
+        BoxCollider existingBox = canvasObj.GetComponent<BoxCollider>();
+        if (existingBox != null) DestroyImmediate(existingBox);
+
+        System.Type uiShapeType = null;
+        Component existingUiShape = null;
+
+        Component[] parentComps = canvasObj.GetComponents<Component>();
+        foreach (var comp in parentComps)
+        {
+            if (comp != null)
+            {
+                string n = comp.GetType().Name.ToLower();
+                if (n.Contains("uishape") || n.Contains("ui_shape"))
+                {
+                    existingUiShape = comp;
+                    uiShapeType = comp.GetType();
+                    break;
+                }
+            }
+        }
+
+        if (uiShapeType == null)
+        {
+            foreach (var asm in System.AppDomain.CurrentDomain.GetAssemblies())
+            {
+                Type[] types = null;
+                try
+                {
+                    types = asm.GetTypes();
+                }
+                catch (System.Reflection.ReflectionTypeLoadException e)
+                {
+                    types = e.Types;
+                }
+                catch { continue; }
+
+                if (types != null)
+                {
+                    foreach (var t in types)
+                    {
+                        if (t != null)
+                        {
+                            string tn = t.Name.ToLower();
+                            if (tn == "vrcuishape" || tn == "vrc_ui_shape")
+                            {
+                                uiShapeType = t;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (uiShapeType != null) break;
+            }
+        }
+
         if (uiShapeType != null && canvasObj.GetComponent(uiShapeType) == null)
         {
             canvasObj.AddComponent(uiShapeType);
@@ -189,6 +279,31 @@ public class SurveyManagerEditor : Editor
         if (oldRes != null) DestroyImmediate(oldRes.gameObject);
         Transform oldMaster = canvasObj.transform.Find("MasterControlPanel");
         if (oldMaster != null) DestroyImmediate(oldMaster.gameObject);
+
+        Vector3 savedDtcWorldPos = canvasObj.transform.position + canvasObj.transform.right * 2.3f;
+        Quaternion savedDtcWorldRot = canvasObj.transform.rotation;
+        Vector3 savedDtcScale = new Vector3(0.002f, 0.002f, 0.002f);
+        bool hasSavedDtcTransform = false;
+
+        Transform oldDtcConsent = canvasObj.transform.Find("Container_DtcConsent");
+        if (oldDtcConsent == null && manager.containerDtcConsent != null)
+        {
+            oldDtcConsent = manager.containerDtcConsent.transform;
+        }
+        if (oldDtcConsent == null)
+        {
+            GameObject found = GameObject.Find("Container_DtcConsent");
+            if (found != null) oldDtcConsent = found.transform;
+        }
+
+        if (oldDtcConsent != null)
+        {
+            savedDtcWorldPos = oldDtcConsent.position;
+            savedDtcWorldRot = oldDtcConsent.rotation;
+            savedDtcScale = oldDtcConsent.localScale;
+            hasSavedDtcTransform = true;
+            DestroyImmediate(oldDtcConsent.gameObject);
+        }
 
         // 破棄前の残存参照による OdinSerializer エラーを防止するため一度参照クリア
         manager.titleText = null;
@@ -205,6 +320,10 @@ public class SurveyManagerEditor : Editor
         manager.consentNoticeDisplay = null;
         manager.consentAgreeButton = null;
         manager.consentDisagreeButton = null;
+        manager.containerDtcConsent = null;
+        manager.dtcConsentNoticeDisplay = null;
+        manager.dtcConsentAgreeButton = null;
+        manager.dtcConsentDisagreeButton = null;
         manager.surveyPanel = null;
         manager.resultPanel = null;
         manager.resultMessageText = null;
@@ -360,6 +479,76 @@ public class SurveyManagerEditor : Editor
 
         consentObj.SetActive(false);
 
+        // Container_DtcConsent (独立したDTC同意確認画面 World Space Canvas)
+        GameObject dtcConsentObj = new GameObject("Container_DtcConsent", typeof(RectTransform), typeof(Canvas), typeof(GraphicRaycaster), typeof(Image));
+        if (canvasObj.transform.parent != null)
+        {
+            dtcConsentObj.transform.SetParent(canvasObj.transform.parent, false);
+        }
+        else
+        {
+            dtcConsentObj.transform.SetParent(null, false);
+        }
+
+        dtcConsentObj.transform.position = savedDtcWorldPos;
+        dtcConsentObj.transform.rotation = savedDtcWorldRot;
+        dtcConsentObj.transform.localScale = savedDtcScale;
+
+        Vector2 targetSize = (canvasRt != null) ? canvasRt.sizeDelta : new Vector2(1000, 600);
+        RectTransform dtcConsentRt = dtcConsentObj.GetComponent<RectTransform>();
+        dtcConsentRt.sizeDelta = targetSize;
+
+        Canvas dtcCanvas = dtcConsentObj.GetComponent<Canvas>();
+        dtcCanvas.renderMode = RenderMode.WorldSpace;
+
+        bool uiShapeAdded = false;
+        if (existingUiShape != null)
+        {
+            UnityEditorInternal.ComponentUtility.CopyComponent(existingUiShape);
+            UnityEditorInternal.ComponentUtility.PasteComponentAsNew(dtcConsentObj);
+            uiShapeAdded = true;
+            Debug.Log($"★ [SurveyManager] ComponentUtility で VRC UI Shape ({existingUiShape.GetType().FullName}) を Container_DtcConsent に完全にコピー＆ペーストしました！");
+        }
+        else if (uiShapeType != null)
+        {
+            if (dtcConsentObj.GetComponent(uiShapeType) == null)
+            {
+                dtcConsentObj.AddComponent(uiShapeType);
+            }
+            uiShapeAdded = true;
+            Debug.Log($"★ [SurveyManager] VRC UI Shape ({uiShapeType.FullName}) を Container_DtcConsent に自動追加しました！");
+        }
+
+        if (!uiShapeAdded)
+        {
+            Debug.LogError("⚠️ [SurveyManager] VRC UI Shape の型を取得できませんでした。");
+        }
+
+        Image dtcBgImg = dtcConsentObj.GetComponent<Image>();
+        dtcBgImg.color = new Color(0.12f, 0.16f, 0.22f, 0.98f);
+        dtcBgImg.raycastTarget = false; // 背景Imageはボタン操作を遮らないようOFF
+        manager.containerDtcConsent = dtcConsentObj;
+        Transform dtcConsentTr = dtcConsentObj.transform;
+
+        CreateOrGetText(dtcConsentTr, "DtcTitleText", "【位置・視線データ収集 (MVP_DTC) 同意確認】", font, 36, TextAnchor.MiddleCenter, new Vector2(0, 210), new Vector2(920, 60));
+
+        Text dtcNoticeText = CreateOrGetText(dtcConsentTr, "DtcConsentNoticeDisplay", manager.dtcConsentNoticeText, font, 24, TextAnchor.MiddleCenter, new Vector2(0, 45), new Vector2(900, 220));
+        dtcNoticeText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        dtcNoticeText.verticalOverflow = VerticalWrapMode.Truncate;
+        manager.dtcConsentNoticeDisplay = dtcNoticeText;
+
+        GameObject dtcAgreeBtnObj = CreateButtonWithEvent(dtcConsentTr, "Btn_DtcConsentAgree", "同意する (データ記録許可)", font, new Vector2(-220, -145), new Vector2(360, 80), 26, manager, "OnDtcConsentAgree");
+        manager.dtcConsentAgreeButton = dtcAgreeBtnObj.GetComponent<Button>();
+        Image dtcAgreeImg = dtcAgreeBtnObj.GetComponent<Image>();
+        if (dtcAgreeImg != null) dtcAgreeImg.color = new Color(0.2f, 0.75f, 0.45f, 1f);
+
+        GameObject dtcDisagreeBtnObj = CreateButtonWithEvent(dtcConsentTr, "Btn_DtcConsentDisagree", "同意しない (辞退)", font, new Vector2(220, -145), new Vector2(360, 80), 26, manager, "OnDtcConsentDisagree");
+        manager.dtcConsentDisagreeButton = dtcDisagreeBtnObj.GetComponent<Button>();
+        Image dtcDisagreeImg = dtcDisagreeBtnObj.GetComponent<Image>();
+        if (dtcDisagreeImg != null) dtcDisagreeImg.color = new Color(0.65f, 0.35f, 0.35f, 1f);
+
+        dtcConsentObj.SetActive(false);
+
         // ResultPanel
         GameObject resObj = new GameObject("ResultPanel", typeof(RectTransform), typeof(Image));
         resObj.transform.SetParent(parentCanvas, false);
@@ -384,7 +573,9 @@ public class SurveyManagerEditor : Editor
         mRt.anchorMax = Vector2.one;
         mRt.offsetMin = Vector2.zero;
         mRt.offsetMax = Vector2.zero;
-        mObj.GetComponent<Image>().color = new Color(0.15f, 0.18f, 0.28f, 0.98f);
+        Image masterBgImg = mObj.GetComponent<Image>();
+        masterBgImg.color = new Color(0.15f, 0.18f, 0.28f, 0.98f);
+        masterBgImg.raycastTarget = false; // 管理者パネル背景のRaycastTargetをOFFにして他のUI操作を妨げない
         manager.masterControlPanel = mObj;
 
         CreateOrGetText(mTr, "MasterTitle", "【RecordMaster限定 コントロールパネル】", font, 36, TextAnchor.MiddleCenter, new Vector2(0, 230), new Vector2(900, 50));
@@ -418,7 +609,7 @@ public class SurveyManagerEditor : Editor
         }
 
         // 右側1: 一斉開始ボタン
-        GameObject startBtnObj = CreateButtonWithEvent(mTr, "Btn_StartSurvey", "▶ アンケート一斉開始", font, new Vector2(260, 155), new Vector2(340, 65), 24, manager, "OnStartSurveyButton");
+        GameObject startBtnObj = CreateButtonWithEvent(mTr, "Btn_StartSurvey", "▶ アンケート一斉開始", font, new Vector2(260, 160), new Vector2(340, 55), 22, manager, "OnStartSurveyButton");
         Button startBtnComp = startBtnObj.GetComponent<Button>();
         manager.startSurveyButton = startBtnComp;
 
@@ -481,12 +672,118 @@ public class SurveyManagerEditor : Editor
         manager.masterControlPanel.SetActive(true);
         mObj.transform.SetAsLastSibling();
 
+        FixColliders(manager);
+
         // 確実な参照のシリアライズ保存
         EditorUtility.SetDirty(manager);
         serializedObject.Update();
         serializedObject.ApplyModifiedProperties();
 
         Debug.Log($"★ [SurveyManager] 親Canvasの余分な背景Imageを除去し、完全シリアライズ保存されたUIセットアップが完了しました！");
+    }
+
+    [MenuItem("Tools/MVP/Fix All Colliders (IsTrigger)")]
+    public static void FixAllCollidersMenu()
+    {
+        SurveyManager manager = UnityEngine.Object.FindObjectOfType<SurveyManager>();
+        if (manager != null)
+        {
+            FixCollidersStatic(manager);
+        }
+        else
+        {
+            Debug.LogWarning("[SurveyManagerEditor] シーン内に SurveyManager が見つかりませんでした。");
+        }
+    }
+
+    [InitializeOnLoadMethod]
+    private static void OnEditorLoad()
+    {
+        EditorApplication.delayCall += () =>
+        {
+            SurveyManager manager = UnityEngine.Object.FindObjectOfType<SurveyManager>();
+            if (manager != null)
+            {
+                FixCollidersStatic(manager);
+            }
+        };
+    }
+
+    private void FixColliders(SurveyManager manager)
+    {
+        FixCollidersStatic(manager);
+    }
+
+    public static void FixCollidersStatic(SurveyManager manager)
+    {
+        if (manager == null) return;
+
+        int count = 0;
+        Collider[] colliders = manager.GetComponentsInChildren<Collider>(true);
+        if (colliders != null)
+        {
+            foreach (var c in colliders)
+            {
+                if (c != null)
+                {
+                    c.isTrigger = true;
+                    EditorUtility.SetDirty(c);
+                    count++;
+                }
+            }
+        }
+
+        GameObject dtcConsent = manager.containerDtcConsent;
+        if (dtcConsent == null)
+        {
+            dtcConsent = GameObject.Find("Container_DtcConsent");
+            if (dtcConsent != null)
+            {
+                manager.containerDtcConsent = dtcConsent;
+                EditorUtility.SetDirty(manager);
+            }
+        }
+
+        if (dtcConsent != null)
+        {
+            BoxCollider box = dtcConsent.GetComponent<BoxCollider>();
+            if (box == null)
+            {
+                box = Undo.AddComponent<BoxCollider>(dtcConsent);
+                RectTransform rt = dtcConsent.GetComponent<RectTransform>();
+                Vector2 size = (rt != null) ? rt.sizeDelta : new Vector2(1000, 600);
+                box.size = new Vector3(size.x, size.y, 1f);
+                box.center = Vector3.zero;
+            }
+            if (box != null)
+            {
+                box.isTrigger = true;
+                EditorUtility.SetDirty(box);
+                count++;
+            }
+
+            Collider[] dtcColliders = dtcConsent.GetComponentsInChildren<Collider>(true);
+            if (dtcColliders != null)
+            {
+                foreach (var c in dtcColliders)
+                {
+                    if (c != null)
+                    {
+                        c.isTrigger = true;
+                        EditorUtility.SetDirty(c);
+                        count++;
+                    }
+                }
+            }
+            EditorUtility.SetDirty(dtcConsent);
+        }
+
+        EditorUtility.SetDirty(manager);
+        if (manager.gameObject.scene.IsValid())
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
+        }
+        Debug.Log($"[SurveyManagerEditor] {count} 個のコライダーを検出・IsTrigger化しました（Container_DtcConsent含む）。プレイヤーの物理衝突を防止しました。");
     }
 
     private void AutoResizeArrays(SurveyManager manager)
@@ -530,6 +827,7 @@ public class SurveyManagerEditor : Editor
         t.fontSize = fontSize;
         t.alignment = alignment;
         t.color = Color.white;
+        t.raycastTarget = false; // テキスト自体はRaycast判定を受け取らず、後ろのボタン判定を通過させる
 
         return t;
     }
@@ -545,6 +843,12 @@ public class SurveyManagerEditor : Editor
         rt.anchoredPosition = pos;
         rt.sizeDelta = size;
 
+        Image btnImg = btnObj.GetComponent<Image>();
+        if (btnImg != null)
+        {
+            btnImg.raycastTarget = true; // ボタン本体ImageのRaycastTargetのみON
+        }
+
         Text t = btnObj.GetComponentInChildren<Text>();
         if (t != null)
         {
@@ -552,11 +856,13 @@ public class SurveyManagerEditor : Editor
             t.font = font;
             t.fontSize = fontSize;
             t.color = Color.black;
+            t.raycastTarget = false; // ラベルテキストのRaycastTargetはOFF
         }
 
         Button b = btnObj.GetComponent<Button>();
         if (b != null && manager != null)
         {
+            b.onClick = new Button.ButtonClickedEvent();
             UdonBehaviour udon = manager.GetComponent<UdonBehaviour>();
             if (udon != null)
             {
@@ -566,6 +872,7 @@ public class SurveyManagerEditor : Editor
             {
                 UnityEventTools.AddStringPersistentListener(b.onClick, manager.SendCustomEvent, eventName);
             }
+            EditorUtility.SetDirty(b);
         }
 
         return btnObj;

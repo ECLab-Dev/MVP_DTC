@@ -63,13 +63,21 @@ public class SurveyManager : UdonSharpBehaviour
     public GameObject containerTextInput;
     public InputField inputFieldArea;
 
-    [Header("同意確認画面 UIコンテナ参照")]
+    [Header("アンケート同意確認画面 UIコンテナ参照")]
     public GameObject containerConsent;
     public Text consentNoticeDisplay;
     public Button consentAgreeButton;
     public Button consentDisagreeButton;
     [TextArea(3, 8)]
     public string consentNoticeText = "【アンケート参加・データ収集に関する同意確認】\n\n本アンケートの回答データは統計・報告目的のみに使用されます。\n内容に同意いただける方は「同意する」を押してアンケートへお進みください。\n「同意しない」を押した場合は、アンケートに回答せず終了します。";
+
+    [Header("DTC (位置・視線データ収集) 同意確認画面 UI参照")]
+    public GameObject containerDtcConsent;
+    public Text dtcConsentNoticeDisplay;
+    public Button dtcConsentAgreeButton;
+    public Button dtcConsentDisagreeButton;
+    [TextArea(3, 8)]
+    public string dtcConsentNoticeText = "【位置・視線データ収集（MVP_DTC）に関する同意確認】\n\n本ワールドでは研究・統計分析を目的として、プレイヤーの位置および頭部姿勢データ（MVP_DTC）を記録する機能があります。\nデータ収集にご同意いただける方は「同意する」を押してください。\n「同意しない」を押した場合、あなたの位置・視線データは記録されません。";
 
     [Header("ナビゲーション & 主催者用コントロール")]
     public GameObject surveyPanel;
@@ -95,11 +103,20 @@ public class SurveyManager : UdonSharpBehaviour
     [Tooltip("配信対象ラジオボタン: ワールド全員モード")]
     public Button targetModeAllButton;
 
+    [Header("配信対象モードの初期設定 (Inspector設定)")]
+    [Tooltip("ワールド開始時の初期配信対象モード (0: リスト限定 [JsonNames], 1: ワールド全員 [要同意])")]
+    public int initialTargetMode = 0; // 0: リスト限定, 1: ワールド全員
+
     // ネットワーク同期変数
     [UdonSynced] private string syncedAnsweredPlayers = ""; 
     [UdonSynced] private string syncedLatestResultLog = ""; 
     [UdonSynced] private bool syncedSurveyStarted = false; 
     [UdonSynced] private bool syncedTargetAllMode = false; // false: リスト限定 (JsonNames), true: ワールド全員 (同意画面あり)
+
+    // DTC用 ネットワーク同期変数
+    [UdonSynced] private bool syncedDtcTargetAllMode = false; // false: リスト限定, true: ワールド全員 (ワールド全員ボタンに連動)
+    [UdonSynced] private string syncedDtcConsentedPlayers = ""; // DTC同意したプレイヤー名 (,Player1,Player2,)
+    [UdonSynced] private string syncedDtcDisagreedPlayers = ""; // DTC辞退したプレイヤー名
 
     // 内部状態変数
     private int currentIndex = 0;
@@ -108,13 +125,44 @@ public class SurveyManager : UdonSharpBehaviour
     private bool hasAnswered = false;
     private string lastProcessedLog = "";
 
+    // 主催者(RecordMaster)ローカル専用: 一度確定した回答完了・辞退プレイヤー名の永続蓄積リスト (,name1,name2,)
+    // ネットワーク同期ではなくマスターのメモリ上に保持されるため、他クライアントの同期変数が巻き戻っても影響を受けない
+    private string masterRecordedAnsweredPlayers = "";
+
+    // シリアライズ送信待機フラグ (回答完了・同意辞退のシリアライズを確実に成功させるための制御)
+    private bool pendingSerialization = false;
+    private int serializationRetryCount = 0;
+
+    // ローカルでのDTC同意・辞退回答済みフラグ (アンケート一斉開始時などの不要な再出現を完全に防止)
+    private bool hasDtcResponded = false;
+
     void Start()
     {
         EnsureUIReferences();
+
+        bool isOwnerOrLocal = (Networking.LocalPlayer == null || !Networking.LocalPlayer.IsValid() || Networking.IsOwner(gameObject));
+        if (isOwnerOrLocal)
+        {
+            bool isAll = (initialTargetMode == 1);
+            syncedTargetAllMode = isAll;
+            syncedDtcTargetAllMode = isAll;
+            RequestSerialization();
+        }
+
         CheckIfAlreadyAnswered();
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        if (localPlayer != null && localPlayer.IsValid())
+        {
+            if (CheckIfDtcResponded(localPlayer.displayName))
+            {
+                hasDtcResponded = true;
+            }
+        }
 
         if (surveyPanel != null) surveyPanel.SetActive(false);
         if (resultPanel != null) resultPanel.SetActive(false);
+        if (containerDtcConsent != null) containerDtcConsent.SetActive(false);
 
         if (masterControlPanel != null)
         {
@@ -127,8 +175,15 @@ public class SurveyManager : UdonSharpBehaviour
             selfImage.enabled = false;
         }
 
+        DisablePhysicalCollisions();
+        SendCustomEventDelayedFrames(nameof(DisablePhysicalCollisions), 1);
+        SendCustomEventDelayedSeconds(nameof(DisablePhysicalCollisions), 0.5f);
+        SendCustomEventDelayedSeconds(nameof(DisablePhysicalCollisions), 1.5f);
+        SendCustomEventDelayedSeconds(nameof(DisablePhysicalCollisions), 3.0f);
+
         RefreshMasterPanelVisibility();
         CheckAndRestoreSurveyForLocalUser();
+        CheckAndRestoreDtcConsentForLocalUser();
 
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 0.2f);
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 1.0f);
@@ -139,6 +194,9 @@ public class SurveyManager : UdonSharpBehaviour
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 0.5f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 1.5f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 3.5f);
+
+        SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 0.6f);
+        SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 1.6f);
     }
 
     public override void OnPlayerJoined(VRCPlayerApi player)
@@ -146,11 +204,13 @@ public class SurveyManager : UdonSharpBehaviour
         EnsureUIReferences();
         RefreshMasterPanelVisibility();
         CheckAndRestoreSurveyForLocalUser();
+        CheckAndRestoreDtcConsentForLocalUser();
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 0.5f);
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 2.0f);
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 5.0f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 1.0f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 3.0f);
+        SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 1.2f);
     }
 
     public override void OnPlayerLeft(VRCPlayerApi player)
@@ -158,6 +218,7 @@ public class SurveyManager : UdonSharpBehaviour
         EnsureUIReferences();
         RefreshMasterPanelVisibility();
         CheckAndRestoreSurveyForLocalUser();
+        CheckAndRestoreDtcConsentForLocalUser();
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 0.5f);
     }
 
@@ -181,6 +242,11 @@ public class SurveyManager : UdonSharpBehaviour
             if (resultPanel != null && resultPanel.activeSelf) resultPanel.SetActive(false);
 
             UpdateMasterStatusText();
+        }
+
+        if (syncedDtcTargetAllMode && containerDtcConsent != null && containerDtcConsent.activeSelf)
+        {
+            containerDtcConsent.transform.SetAsLastSibling();
         }
     }
 
@@ -279,6 +345,95 @@ public class SurveyManager : UdonSharpBehaviour
                 }
             }
         }
+
+        if (containerDtcConsent == null)
+        {
+            Transform t = transform.Find("Container_DtcConsent");
+            if (t == null && surveyPanel != null) t = surveyPanel.transform.Find("Container_DtcConsent");
+            if (t == null && transform.parent != null) t = transform.parent.Find("Container_DtcConsent");
+            if (t == null)
+            {
+                GameObject found = GameObject.Find("Container_DtcConsent");
+                if (found != null) t = found.transform;
+            }
+            if (t != null) containerDtcConsent = t.gameObject;
+        }
+
+        if (containerDtcConsent != null)
+        {
+            if (dtcConsentNoticeDisplay == null)
+            {
+                Transform t = containerDtcConsent.transform.Find("DtcConsentNoticeDisplay");
+                if (t == null) t = containerDtcConsent.transform.Find("ConsentNoticeDisplay");
+                if (t != null) dtcConsentNoticeDisplay = t.GetComponent<Text>();
+            }
+            if (dtcConsentAgreeButton == null)
+            {
+                Transform t = containerDtcConsent.transform.Find("Btn_DtcConsentAgree");
+                if (t == null) t = containerDtcConsent.transform.Find("Btn_ConsentAgree");
+                if (t != null) dtcConsentAgreeButton = t.GetComponent<Button>();
+            }
+            if (dtcConsentDisagreeButton == null)
+            {
+                Transform t = containerDtcConsent.transform.Find("Btn_DtcConsentDisagree");
+                if (t == null) t = containerDtcConsent.transform.Find("Btn_ConsentDisagree");
+                if (t != null) dtcConsentDisagreeButton = t.GetComponent<Button>();
+            }
+        }
+    }
+
+    /// <summary>
+    /// オーナー権が自身に移譲された際のコールバック (シリアライズの確実な送出と同期修復)
+    /// </summary>
+    public override void OnOwnershipTransferred(VRCPlayerApi player)
+    {
+        EnsureUIReferences();
+        RefreshMasterPanelVisibility();
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        if (localPlayer != null && localPlayer.IsValid() && player != null && player.IsValid())
+        {
+            if (player.isLocal)
+            {
+                // 自分が新しくオーナーになった場合、未送信のシリアライズデータがあれば即座に送信
+                if (pendingSerialization)
+                {
+                    RequestSerialization();
+                    pendingSerialization = false;
+                }
+
+                // 主催者(RecordMaster)であれば、手元の完全な確定リストを syncedAnsweredPlayers にマージして同期を自動修復
+                string localName = localPlayer.displayName;
+                if (CheckIfRecordMaster(localName))
+                {
+                    RepairAndBroadcastAnsweredList();
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// オーナー権移譲待ち・遅延シリアライズリトライ処理
+    /// </summary>
+    public void RetrySerialization()
+    {
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        if (localPlayer != null && localPlayer.IsValid())
+        {
+            if (Networking.IsOwner(gameObject))
+            {
+                RequestSerialization();
+                serializationRetryCount++;
+                if (serializationRetryCount >= 3)
+                {
+                    pendingSerialization = false;
+                }
+            }
+            else
+            {
+                Networking.SetOwner(localPlayer, gameObject);
+            }
+        }
     }
 
     /// <summary>
@@ -289,13 +444,24 @@ public class SurveyManager : UdonSharpBehaviour
         CheckIfAlreadyAnswered();
         RefreshMasterPanelVisibility();
         CheckAndRestoreSurveyForLocalUser();
+        CheckAndRestoreDtcConsentForLocalUser();
 
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         string localName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
 
-        // RecordMaster 権限のあるプレイヤーの PC ログに出力
+        // RecordMaster 権限のあるプレイヤーの処理
         if (CheckIfRecordMaster(localName))
         {
+            // 届いた最新ログから回答者名を抽出し、マスターローカルの確定リストに登録
+            string extractedName = ExtractPlayerNameFromLog(syncedLatestResultLog);
+            if (!string.IsNullOrEmpty(extractedName))
+            {
+                RegisterPlayerAnsweredByMaster(extractedName);
+            }
+
+            // syncedAnsweredPlayers に含まれるプレイヤーもマスター確定リストに取り込む
+            SyncAnsweredPlayersToMasterList();
+
             if (!string.IsNullOrEmpty(syncedLatestResultLog) && syncedLatestResultLog != lastProcessedLog)
             {
                 lastProcessedLog = syncedLatestResultLog;
@@ -303,6 +469,12 @@ public class SurveyManager : UdonSharpBehaviour
             }
 
             UpdateMasterStatusText();
+
+            // マスターがオーナーであれば最新確定リストで同期文字列を自動修復
+            if (Networking.IsOwner(gameObject))
+            {
+                RepairAndBroadcastAnsweredList();
+            }
         }
 
         if (!syncedSurveyStarted)
@@ -398,18 +570,32 @@ public class SurveyManager : UdonSharpBehaviour
 
         // 主催者(RecordMaster)には表示しない
         if (CheckIfRecordMaster(localName)) return;
-        // 対象リスト(JsonNamesString)に含まれていない人は表示しない
-        if (!CheckIfUserInVariable(localName, jsonNamesVariableName)) return;
+
+        // モード別の対象者判定
+        bool isTarget = false;
+        if (syncedTargetAllMode)
+        {
+            isTarget = true;
+        }
+        else
+        {
+            isTarget = CheckIfUserInVariable(localName, jsonNamesVariableName);
+        }
+        if (!isTarget) return;
 
         CheckIfAlreadyAnswered();
 
-        // 未回答の場合、目の前にアンケートを表示・復帰！
-        if (!hasAnswered)
+        if (hasAnswered)
         {
-            Debug.Log($"[SurveyManager] 管理者の指示により、{localName} のアンケート画面を再表示します。");
-            PositionSurveyInFrontOfPlayer();
-            InitializeSurvey();
+            // すでにローカルで回答済みだがマスター側で未回答判定になっていた場合の救済再送
+            SubmitAnswerAndSerialize(localName);
+            return;
         }
+
+        // 未回答の場合、目の前にアンケートを表示・復帰！
+        Debug.Log($"[SurveyManager] 管理者の指示により、{localName} のアンケート画面を再表示します。");
+        PositionSurveyInFrontOfPlayer();
+        InitializeSurvey();
     }
 
     private void CheckIfAlreadyAnswered()
@@ -417,13 +603,191 @@ public class SurveyManager : UdonSharpBehaviour
         if (hasAnswered) return;
 
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
-        if (localPlayer != null && localPlayer.IsValid() && !string.IsNullOrEmpty(syncedAnsweredPlayers))
+        if (localPlayer != null && localPlayer.IsValid())
         {
-            string nameKey = "," + localPlayer.displayName + ",";
-            if (syncedAnsweredPlayers.Contains(nameKey))
+            string pName = localPlayer.displayName;
+            if (IsPlayerAnswered(pName))
             {
                 hasAnswered = true;
             }
+        }
+    }
+
+    /// <summary>
+    /// 指定されたプレイヤーが回答済み（または同意辞退）かを判定する
+    /// masterRecordedAnsweredPlayers と syncedAnsweredPlayers の双方を大文字小文字無視で照合
+    /// </summary>
+    private bool IsPlayerAnswered(string playerName)
+    {
+        if (string.IsNullOrEmpty(playerName)) return false;
+        string cleanName = playerName.Trim();
+        if (string.IsNullOrEmpty(cleanName)) return false;
+
+        string key = "," + cleanName.ToLower() + ",";
+
+        // 1. マスターローカルの確定リストにあれば true
+        if (!string.IsNullOrEmpty(masterRecordedAnsweredPlayers) && masterRecordedAnsweredPlayers.ToLower().Contains(key))
+        {
+            return true;
+        }
+
+        // 2. ネットワーク同期文字列にあれば true
+        if (!string.IsNullOrEmpty(syncedAnsweredPlayers) && syncedAnsweredPlayers.ToLower().Contains(key))
+        {
+            // マスター側ならローカル確定リストにも取り込んでおく
+            RegisterPlayerAnsweredByMaster(cleanName);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// RecordMasterローカル専用: プレイヤーを回答完了としてマスターのメモリに永続登録する
+    /// </summary>
+    private void RegisterPlayerAnsweredByMaster(string playerName)
+    {
+        if (string.IsNullOrEmpty(playerName)) return;
+        string cleanName = playerName.Trim();
+        if (string.IsNullOrEmpty(cleanName)) return;
+
+        if (string.IsNullOrEmpty(masterRecordedAnsweredPlayers))
+        {
+            masterRecordedAnsweredPlayers = ",";
+        }
+
+        string key = cleanName.ToLower() + ",";
+        if (!masterRecordedAnsweredPlayers.ToLower().Contains("," + key))
+        {
+            masterRecordedAnsweredPlayers += cleanName + ",";
+        }
+    }
+
+    /// <summary>
+    /// 回答ログ文字列 "[MVP_Q] PlayerName: ..." からプレイヤー名を抽出する
+    /// </summary>
+    private string ExtractPlayerNameFromLog(string log)
+    {
+        if (string.IsNullOrEmpty(log)) return "";
+        string prefix = "[MVP_Q] ";
+        int startIdx = log.IndexOf(prefix);
+        if (startIdx < 0) return "";
+        startIdx += prefix.Length;
+
+        int colonIdx = log.IndexOf(":", startIdx);
+        if (colonIdx < 0) return "";
+
+        string name = log.Substring(startIdx, colonIdx - startIdx).Trim();
+        return name;
+    }
+
+    /// <summary>
+    /// syncedAnsweredPlayers 内の全プレイヤーをマスター確定リストに一括登録する
+    /// </summary>
+    private void SyncAnsweredPlayersToMasterList()
+    {
+        if (string.IsNullOrEmpty(syncedAnsweredPlayers)) return;
+        string[] arr = syncedAnsweredPlayers.Split(',');
+        for (int i = 0; i < arr.Length; i++)
+        {
+            string p = arr[i].Trim();
+            if (!string.IsNullOrEmpty(p))
+            {
+                RegisterPlayerAnsweredByMaster(p);
+            }
+        }
+    }
+
+    /// <summary>
+    /// RecordMasterがオーナー権を持っている時、マスターが保持する全員分の確定リストを
+    /// syncedAnsweredPlayers にマージして全クライアントへ再配信（自動修復）する
+    /// </summary>
+    private void RepairAndBroadcastAnsweredList()
+    {
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        if (localPlayer == null || !localPlayer.IsValid()) return;
+        if (!CheckIfRecordMaster(localPlayer.displayName)) return;
+        if (!Networking.IsOwner(gameObject)) return;
+
+        if (string.IsNullOrEmpty(masterRecordedAnsweredPlayers)) return;
+
+        bool changed = false;
+        if (string.IsNullOrEmpty(syncedAnsweredPlayers))
+        {
+            syncedAnsweredPlayers = ",";
+            changed = true;
+        }
+
+        string[] recorded = masterRecordedAnsweredPlayers.Split(',');
+        for (int i = 0; i < recorded.Length; i++)
+        {
+            string p = recorded[i].Trim();
+            if (!string.IsNullOrEmpty(p))
+            {
+                string key = "," + p.ToLower() + ",";
+                if (!syncedAnsweredPlayers.ToLower().Contains(key))
+                {
+                    syncedAnsweredPlayers += p + ",";
+                    changed = true;
+                }
+            }
+        }
+
+        if (changed)
+        {
+            RequestSerialization();
+        }
+    }
+
+    /// <summary>
+    /// 回答完了・同意辞退を安全に記録し、段階的リトライを伴ってシリアライズ送信する
+    /// </summary>
+    private void SubmitAnswerAndSerialize(string playerName)
+    {
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+
+        // 安全に自身の名前をローカルの syncedAnsweredPlayers に追加
+        AppendAnsweredPlayer(playerName);
+
+        if (localPlayer != null && localPlayer.IsValid())
+        {
+            pendingSerialization = true;
+            serializationRetryCount = 0;
+
+            if (!Networking.IsOwner(gameObject))
+            {
+                Networking.SetOwner(localPlayer, gameObject);
+            }
+            else
+            {
+                RequestSerialization();
+            }
+
+            // オーナー権移譲中・ネットワーク遅延を考慮し、段階的にリトライ実行して確実にシリアライズを送出
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.2f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.5f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 1.0f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 2.0f);
+        }
+
+        // 回答完了のトリガーを全体通知
+        SendCustomNetworkEvent(NetworkEventTarget.All, nameof(OnReceiveSurveyResultLogNet));
+        SendCustomEventDelayedSeconds(nameof(TriggerDelayedLogBroadcast), 0.3f);
+    }
+
+    private void AppendAnsweredPlayer(string playerName)
+    {
+        if (string.IsNullOrEmpty(playerName)) return;
+        string cleanName = playerName.Trim();
+
+        if (string.IsNullOrEmpty(syncedAnsweredPlayers))
+        {
+            syncedAnsweredPlayers = ",";
+        }
+        string key = cleanName.ToLower() + ",";
+        if (!syncedAnsweredPlayers.ToLower().Contains("," + key))
+        {
+            syncedAnsweredPlayers += cleanName + ",";
         }
     }
 
@@ -562,9 +926,10 @@ public class SurveyManager : UdonSharpBehaviour
         }
 
         syncedTargetAllMode = isAllMode;
+        syncedDtcTargetAllMode = isAllMode;
         RequestSerialization();
 
-        string modeLabel = syncedTargetAllMode ? "🌐 ワールド全員 (同意画面あり)" : "🎯 リスト限定 (JsonNames)";
+        string modeLabel = syncedTargetAllMode ? "🌐 ワールド全員 (同意画面・固定表示)" : "🎯 リスト限定 (JsonNames)";
         if (masterWarningText != null)
         {
             masterWarningText.text = $"<color=#4FE369><b>配信対象モードを 【{modeLabel}】 に変更しました</b></color>";
@@ -572,11 +937,268 @@ public class SurveyManager : UdonSharpBehaviour
 
         RefreshMasterPanelVisibility();
         SendCustomNetworkEvent(NetworkEventTarget.All, nameof(RefreshMasterPanelVisibility));
+
+        if (isAllMode)
+        {
+            SendCustomNetworkEvent(NetworkEventTarget.All, nameof(ShowFixedConsentPanelForEveryone));
+        }
+        else
+        {
+            SendCustomNetworkEvent(NetworkEventTarget.All, nameof(HideFixedConsentPanelForEveryone));
+        }
     }
 
     public void OnToggleTargetModeButton()
     {
         SetTargetMode(!syncedTargetAllMode);
+    }
+
+    // ==========================================
+    // ワールド固定位置 同意確認パネル (MVP_DTC) 制御
+    // ==========================================
+
+    public void ShowFixedConsentPanelForEveryone()
+    {
+        EnsureUIReferences();
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        string localName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
+
+        // すでに同意または辞退している場合は絶対に再表示しない
+        if (hasDtcResponded || CheckIfDtcResponded(localName))
+        {
+            if (containerDtcConsent != null && containerDtcConsent.activeSelf) containerDtcConsent.SetActive(false);
+            return;
+        }
+
+        if (containerDtcConsent != null)
+        {
+            // 最前面に表示
+            containerDtcConsent.transform.SetAsLastSibling();
+            containerDtcConsent.SetActive(true);
+
+            DisablePhysicalCollisions();
+            SendCustomEventDelayedFrames(nameof(DisablePhysicalCollisions), 1);
+            SendCustomEventDelayedSeconds(nameof(DisablePhysicalCollisions), 0.2f);
+            SendCustomEventDelayedSeconds(nameof(DisablePhysicalCollisions), 0.5f);
+
+            Image bgImg = containerDtcConsent.GetComponent<Image>();
+            if (bgImg != null) bgImg.raycastTarget = false;
+
+            if (dtcConsentAgreeButton != null)
+            {
+                dtcConsentAgreeButton.interactable = true;
+                Image agreeImg = dtcConsentAgreeButton.GetComponent<Image>();
+                if (agreeImg != null) agreeImg.raycastTarget = true;
+            }
+
+            if (dtcConsentDisagreeButton != null)
+            {
+                dtcConsentDisagreeButton.interactable = true;
+                Image disagreeImg = dtcConsentDisagreeButton.GetComponent<Image>();
+                if (disagreeImg != null) disagreeImg.raycastTarget = true;
+            }
+
+            if (dtcConsentNoticeDisplay != null)
+            {
+                dtcConsentNoticeDisplay.text = dtcConsentNoticeText;
+            }
+        }
+    }
+
+    public void HideFixedConsentPanelForEveryone()
+    {
+        EnsureUIReferences();
+
+        if (containerDtcConsent != null)
+        {
+            containerDtcConsent.SetActive(false);
+        }
+    }
+
+    public void OnDtcConsentAgree()
+    {
+        EnsureUIReferences();
+
+        hasDtcResponded = true;
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        string playerName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
+
+        if (localPlayer != null && localPlayer.IsValid())
+        {
+            if (string.IsNullOrEmpty(syncedDtcConsentedPlayers))
+            {
+                syncedDtcConsentedPlayers = ",";
+            }
+            string nameKey = playerName + ",";
+            if (!syncedDtcConsentedPlayers.Contains("," + nameKey))
+            {
+                syncedDtcConsentedPlayers += nameKey;
+            }
+
+            pendingSerialization = true;
+            serializationRetryCount = 0;
+
+            if (!Networking.IsOwner(gameObject))
+            {
+                Networking.SetOwner(localPlayer, gameObject);
+            }
+            else
+            {
+                RequestSerialization();
+            }
+
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.2f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.5f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 1.0f);
+        }
+
+        Debug.LogWarning($"★ [MVP_DTC] {playerName}: 同意（データ記録対象に登録されました）");
+
+        if (containerDtcConsent != null) containerDtcConsent.SetActive(false);
+
+        SendCustomNetworkEvent(NetworkEventTarget.All, nameof(OnReceiveDtcStatusUpdateNet));
+    }
+
+    public void OnDtcConsentDisagree()
+    {
+        EnsureUIReferences();
+
+        hasDtcResponded = true;
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        string playerName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
+
+        if (localPlayer != null && localPlayer.IsValid())
+        {
+            if (string.IsNullOrEmpty(syncedDtcDisagreedPlayers))
+            {
+                syncedDtcDisagreedPlayers = ",";
+            }
+            string nameKey = playerName + ",";
+            if (!syncedDtcDisagreedPlayers.Contains("," + nameKey))
+            {
+                syncedDtcDisagreedPlayers += nameKey;
+            }
+
+            pendingSerialization = true;
+            serializationRetryCount = 0;
+
+            if (!Networking.IsOwner(gameObject))
+            {
+                Networking.SetOwner(localPlayer, gameObject);
+            }
+            else
+            {
+                RequestSerialization();
+            }
+
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.2f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.5f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 1.0f);
+        }
+
+        Debug.LogWarning($"★ [MVP_DTC] {playerName}: 同意辞退（データ記録対象外）");
+
+        if (containerDtcConsent != null) containerDtcConsent.SetActive(false);
+
+        SendCustomNetworkEvent(NetworkEventTarget.All, nameof(OnReceiveDtcStatusUpdateNet));
+    }
+
+    public void OnReceiveDtcStatusUpdateNet()
+    {
+        RefreshMasterPanelVisibility();
+    }
+
+    public bool CheckIfDtcResponded(string playerName)
+    {
+        if (hasDtcResponded) return true;
+        if (string.IsNullOrEmpty(playerName)) return false;
+        string nameKey = "," + playerName.Trim().ToLower() + ",";
+
+        bool isAgreed = !string.IsNullOrEmpty(syncedDtcConsentedPlayers) && syncedDtcConsentedPlayers.ToLower().Contains(nameKey);
+        bool isDisagreed = !string.IsNullOrEmpty(syncedDtcDisagreedPlayers) && syncedDtcDisagreedPlayers.ToLower().Contains(nameKey);
+
+        return isAgreed || isDisagreed;
+    }
+
+    public bool IsUserDtcTarget(string playerName)
+    {
+        if (string.IsNullOrEmpty(playerName)) return false;
+        // RecordMasterNamesのプレイヤーは同意確認パネルの選択に関わらず、デフォルトで[MVP_DTC]データ記録対象とする
+        if (CheckIfRecordMaster(playerName)) return true;
+
+        if (syncedDtcTargetAllMode)
+        {
+            string nameKey = "," + playerName.Trim().ToLower() + ",";
+            return !string.IsNullOrEmpty(syncedDtcConsentedPlayers) && syncedDtcConsentedPlayers.ToLower().Contains(nameKey);
+        }
+        else
+        {
+            return CheckIfUserInVariable(playerName, jsonNamesVariableName);
+        }
+    }
+
+    public void CheckAndRestoreDtcConsentForLocalUser()
+    {
+        EnsureUIReferences();
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        string localName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
+
+        // すでに同意または辞退している場合は絶対に再表示しない
+        if (hasDtcResponded || CheckIfDtcResponded(localName))
+        {
+            if (containerDtcConsent != null && containerDtcConsent.activeSelf)
+            {
+                containerDtcConsent.SetActive(false);
+            }
+            return;
+        }
+
+        if (syncedDtcTargetAllMode)
+        {
+            if (containerDtcConsent != null)
+            {
+                containerDtcConsent.transform.SetAsLastSibling();
+                containerDtcConsent.SetActive(true);
+
+                DisablePhysicalCollisions();
+                SendCustomEventDelayedFrames(nameof(DisablePhysicalCollisions), 1);
+                SendCustomEventDelayedSeconds(nameof(DisablePhysicalCollisions), 0.2f);
+                SendCustomEventDelayedSeconds(nameof(DisablePhysicalCollisions), 0.5f);
+
+                Image bgImg = containerDtcConsent.GetComponent<Image>();
+                if (bgImg != null) bgImg.raycastTarget = false;
+
+                if (dtcConsentAgreeButton != null)
+                {
+                    dtcConsentAgreeButton.interactable = true;
+                    Image agreeImg = dtcConsentAgreeButton.GetComponent<Image>();
+                    if (agreeImg != null) agreeImg.raycastTarget = true;
+                }
+
+                if (dtcConsentDisagreeButton != null)
+                {
+                    dtcConsentDisagreeButton.interactable = true;
+                    Image disagreeImg = dtcConsentDisagreeButton.GetComponent<Image>();
+                    if (disagreeImg != null) disagreeImg.raycastTarget = true;
+                }
+
+                if (dtcConsentNoticeDisplay != null)
+                {
+                    dtcConsentNoticeDisplay.text = dtcConsentNoticeText;
+                }
+            }
+        }
+        else
+        {
+            if (containerDtcConsent != null && containerDtcConsent.activeSelf)
+            {
+                containerDtcConsent.SetActive(false);
+            }
+        }
     }
 
     public void UpdateMasterStatusText()
@@ -631,6 +1253,23 @@ public class SurveyManager : UdonSharpBehaviour
                 }
             }
 
+            if (!string.IsNullOrEmpty(masterRecordedAnsweredPlayers))
+            {
+                string[] masterArr = masterRecordedAnsweredPlayers.Split(',');
+                for (int i = 0; i < masterArr.Length; i++)
+                {
+                    string mName = masterArr[i].Trim();
+                    if (!string.IsNullOrEmpty(mName) && !CheckIfRecordMaster(mName))
+                    {
+                        if (!namesCombined.Contains(mName))
+                        {
+                            if (string.IsNullOrEmpty(namesCombined)) namesCombined = mName;
+                            else namesCombined += ";" + mName;
+                        }
+                    }
+                }
+            }
+
             if (!string.IsNullOrEmpty(namesCombined))
             {
                 targetNames = namesCombined.Split(';');
@@ -673,8 +1312,7 @@ public class SurveyManager : UdonSharpBehaviour
                 totalTargetCount++;
                 bool isPresent = IsPlayerPresentInInstance(pName);
 
-                string nameKey = "," + pName + ",";
-                bool isDone = !string.IsNullOrEmpty(syncedAnsweredPlayers) && syncedAnsweredPlayers.Contains(nameKey);
+                bool isDone = IsPlayerAnswered(pName);
 
                 if (isPresent)
                 {
@@ -1026,6 +1664,11 @@ public class SurveyManager : UdonSharpBehaviour
         syncedAnsweredPlayers = "";
         syncedLatestResultLog = "";
         hasAnswered = false;
+        masterRecordedAnsweredPlayers = "";
+        pendingSerialization = false;
+        syncedDtcConsentedPlayers = "";
+        syncedDtcDisagreedPlayers = "";
+        hasDtcResponded = false;
         RequestSerialization();
 
         if (masterWarningText != null)
@@ -1043,6 +1686,7 @@ public class SurveyManager : UdonSharpBehaviour
         EnsureUIReferences();
 
         hasAnswered = false;
+        hasDtcResponded = false;
         currentIndex = 0;
 
         // 全回答者の画面からアンケートパネルおよび完了結果パネルを即座に消す（非表示）
@@ -1111,14 +1755,16 @@ public class SurveyManager : UdonSharpBehaviour
         InitializeSurvey();
     }
 
-    private void PositionSurveyInFrontOfPlayer()
+    public void PositionPanelInFrontOfPlayer(GameObject targetPanel)
     {
+        if (targetPanel == null) return;
+
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         if (localPlayer != null && localPlayer.IsValid())
         {
             VRCPlayerApi.TrackingData headData = localPlayer.GetTrackingData(VRCPlayerApi.TrackingDataType.Head);
             Vector3 forwardDir = headData.rotation * Vector3.forward;
-            
+
             forwardDir.y = 0;
             if (forwardDir.sqrMagnitude > 0.001f)
             {
@@ -1129,15 +1775,64 @@ public class SurveyManager : UdonSharpBehaviour
                 forwardDir = Vector3.forward;
             }
 
-            transform.position = headData.position + forwardDir * 1.5f;
-            transform.rotation = Quaternion.LookRotation(forwardDir);
+            targetPanel.transform.position = headData.position + forwardDir * 1.5f;
+            targetPanel.transform.rotation = Quaternion.LookRotation(forwardDir);
+
+            // プレイヤーの目の前に出現したパネルによる物理的な引っかかりを防止
+            DisablePhysicalCollisions();
         }
+    }
+
+    /// <summary>
+    /// アンケートパネルおよび子要素のコライダーによる物理的な引っかかりを完全に防止する
+    /// レイヤーは変更せず (Defaultのまま)、全てのコライダーを isTrigger = true に設定して物理衝突を無効化
+    /// </summary>
+    public void DisablePhysicalCollisions()
+    {
+        Collider[] colliders = GetComponentsInChildren<Collider>(true);
+        if (colliders != null)
+        {
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                if (colliders[i] != null)
+                {
+                    colliders[i].isTrigger = true;
+                }
+            }
+        }
+
+        if (containerDtcConsent == null)
+        {
+            GameObject dtcObj = GameObject.Find("Container_DtcConsent");
+            if (dtcObj != null) containerDtcConsent = dtcObj;
+        }
+
+        if (containerDtcConsent != null)
+        {
+            Collider[] dtcColliders = containerDtcConsent.GetComponentsInChildren<Collider>(true);
+            if (dtcColliders != null)
+            {
+                for (int i = 0; i < dtcColliders.Length; i++)
+                {
+                    if (dtcColliders[i] != null)
+                    {
+                        dtcColliders[i].isTrigger = true;
+                    }
+                }
+            }
+        }
+    }
+
+    private void PositionSurveyInFrontOfPlayer()
+    {
+        PositionPanelInFrontOfPlayer(gameObject);
     }
 
     public void InitializeSurvey()
     {
         EnsureUIReferences();
         currentIndex = 0;
+        DisablePhysicalCollisions();
 
         if (syncedTargetAllMode)
         {
@@ -1217,25 +1912,6 @@ public class SurveyManager : UdonSharpBehaviour
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         string playerName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
 
-        if (localPlayer != null && localPlayer.IsValid())
-        {
-            if (!Networking.IsOwner(gameObject))
-            {
-                Networking.SetOwner(localPlayer, gameObject);
-            }
-
-            if (string.IsNullOrEmpty(syncedAnsweredPlayers))
-            {
-                syncedAnsweredPlayers = ",";
-            }
-            string nameKey = playerName + ",";
-            if (!syncedAnsweredPlayers.Contains("," + nameKey))
-            {
-                syncedAnsweredPlayers += nameKey;
-            }
-            RequestSerialization();
-        }
-
         syncedLatestResultLog = $"[MVP_Q] {playerName}: (同意辞退)";
 
         if (surveyPanel != null) surveyPanel.SetActive(false);
@@ -1246,7 +1922,10 @@ public class SurveyManager : UdonSharpBehaviour
             resultMessageText.text = "アンケート回答をご辞退されました。\nご協力ありがとうございました。";
         }
 
-        SendCustomNetworkEvent(NetworkEventTarget.All, nameof(OnReceiveSurveyResultLogNet));
+        SubmitAnswerAndSerialize(playerName);
+
+        // 辞退後、回答完了パネルを5秒後に自動的に閉じる
+        SendCustomEventDelayedSeconds(nameof(HideResultPanel), 5.0f);
     }
 
     public void ShowQuestion(int index)
@@ -1404,26 +2083,13 @@ public class SurveyManager : UdonSharpBehaviour
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         string playerName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
 
-        if (localPlayer != null && localPlayer.IsValid())
-        {
-            if (!Networking.IsOwner(gameObject))
-            {
-                Networking.SetOwner(localPlayer, gameObject);
-            }
-
-            if (string.IsNullOrEmpty(syncedAnsweredPlayers))
-            {
-                syncedAnsweredPlayers = ",";
-            }
-            string nameKey = playerName + ",";
-            if (!syncedAnsweredPlayers.Contains("," + nameKey))
-            {
-                syncedAnsweredPlayers += nameKey;
-            }
-        }
-
         if (surveyPanel != null) surveyPanel.SetActive(false);
         if (resultPanel != null) resultPanel.SetActive(true);
+
+        if (resultMessageText != null)
+        {
+            resultMessageText.text = "ご回答ありがとうございました！";
+        }
 
         string fullLog = $"[MVP_Q] {playerName}: ";
         for (int i = 0; i < questionTexts.Length; i++)
@@ -1440,18 +2106,21 @@ public class SurveyManager : UdonSharpBehaviour
 
         syncedLatestResultLog = fullLog;
 
-        if (localPlayer != null && localPlayer.IsValid())
-        {
-            RequestSerialization();
-        }
+        // 安全な記録と段階的リトライによるシリアライズ送信
+        SubmitAnswerAndSerialize(playerName);
 
-        // 回答完了のトリガーを遅延つきで全体通知し同期遅れを完全に防止する
-        SendCustomNetworkEvent(NetworkEventTarget.All, nameof(OnReceiveSurveyResultLogNet));
-        SendCustomEventDelayedSeconds(nameof(TriggerDelayedLogBroadcast), 0.3f);
+        // 回答完了パネルを5秒後に自動的に閉じる (視界や移動の妨げを防止)
+        SendCustomEventDelayedSeconds(nameof(HideResultPanel), 5.0f);
+    }
 
-        if (resultMessageText != null)
+    /// <summary>
+    /// 回答完了・辞退後に結果パネルを自動非表示にする (5秒タイマー用)
+    /// </summary>
+    public void HideResultPanel()
+    {
+        if (resultPanel != null)
         {
-            resultMessageText.text = "ご回答ありがとうございました！";
+            resultPanel.SetActive(false);
         }
     }
 
@@ -1467,6 +2136,16 @@ public class SurveyManager : UdonSharpBehaviour
 
         if (CheckIfRecordMaster(localName))
         {
+            // 届いた最新ログから回答者名を抽出し、マスターローカルの確定リストに登録
+            string extractedName = ExtractPlayerNameFromLog(syncedLatestResultLog);
+            if (!string.IsNullOrEmpty(extractedName))
+            {
+                RegisterPlayerAnsweredByMaster(extractedName);
+            }
+
+            // syncedAnsweredPlayers に含まれるプレイヤーもマスター確定リストに取り込む
+            SyncAnsweredPlayersToMasterList();
+
             if (!string.IsNullOrEmpty(syncedLatestResultLog) && syncedLatestResultLog != lastProcessedLog)
             {
                 lastProcessedLog = syncedLatestResultLog;
@@ -1474,6 +2153,12 @@ public class SurveyManager : UdonSharpBehaviour
             }
 
             UpdateMasterStatusText();
+
+            // マスターがオーナーであれば最新確定リストで同期文字列を自動修復
+            if (Networking.IsOwner(gameObject))
+            {
+                RepairAndBroadcastAnsweredList();
+            }
         }
     }
 
