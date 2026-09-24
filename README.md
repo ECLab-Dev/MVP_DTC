@@ -1,9 +1,10 @@
 # MVP Lab - Data Collection & Survey System for VRChat
 
-[日本語 (Japanese)](#-日本語-japanese) | [English](#-english)
+[日本語 (Japanese)](#japanese) | [English](#english)
 
 ---
 
+<span id="japanese"></span>
 # 🇯🇵 日本語 (Japanese)
 
 ## MVP Lab について
@@ -134,8 +135,8 @@ MVP_DTC_Online は、外部Webサーバー等に設置した JSON ファイル�
 
 ---
 
-### ☁️ クラウド保存用 URL と API Key の用意手順（今回の GAS 実装例）
-第三者からの不正アクセスを防ぎつつ安全にログを自動保存するため、今回は **Google Apps Script (GAS)** を利用して受信用 Webhook エンドポイントと認証 API Key を構築しました。以下の手順で自身専用のセキュアなエンドポイントを用意できます。
+### ☁️ クラウド保存用 URL と API Key の用意手順（GAS 実装例）
+第三者からの不正アクセスを防ぎつつ安全にログを自動保存するため、**Google Apps Script (GAS)** 等を利用して受信用 Webhook エンドポイントと認証 API Key を構築できます。以下の手順で自身専用のセキュアなエンドポイントを用意できます。
 
 #### ① Google Apps Script の作成
 1. [Google ドライブ](https://drive.google.com/) を開き、「新規」➔「その他」➔「Google Apps Script」を選択して新規プロジェクトを作成します。
@@ -169,7 +170,7 @@ MVP_DTC_Online は、外部Webサーバー等に設置した JSON ファイル�
 2. 画面下部の「スクリプトプロパティ」にて **「スクリプトプロパティを追加」** をクリックします。
    - **プロパティ名**: `API_KEY`
    - **値**: あなたが決めた任意のシークレット文字列（推測されにくい文字列）
-3. 「スクリプトプロパティを保存」をクリックします。コード内にキーを直書きしないため安全に管理できます。
+3. 「スクリプトプロパティを保存」をクリックします。
 
 #### ③ ウェブアプリとしてのデプロイ（保存先 URL の発行）
 1. GAS エディタ右上の **「デプロイ」** ➔ **「新しいデプロイ」** を選択します。
@@ -336,12 +337,16 @@ MVP_DTC_Online は、外部Webサーバー等に設置した JSON ファイル�
     ★ [MVP_DTC] PlayerName: 同意辞退（データ記録対象外）
     ```
 ![Agree](Images/Agree.png "Agree")
+
+---
+
 ## 謝辞
 本プロジェクトは MVP Lab（Metaverse Public Lab）の支援により開発されました。
 
 ---
 ---
 
+<span id="english"></span>
 # 🇺🇸 English
 
 ## About MVP Lab
@@ -403,11 +408,11 @@ The foundational data collection module that outputs avatar position, rotation, 
 ### ⚙️ Consent Button Tracking Mechanism
 `MVP_DTC` does not record participant data without explicit permission. Instead, **it records spatial tracking data exclusively for players who actively click the in-world Consent Button (`AgreeButton`)**.
 
-- **Consent & Tracking Lifecycle**:
-  1. When a player interacts with the in-world `AgreeButton`, the UDON `RecordAgree` event is triggered.
-  2. The clicking player (`Networking.LocalPlayer`) is registered as a consenting participant. To prevent duplicate clicks, the button is immediately disabled (`interactable = false`) and an audio confirmation cue (`ButtonASource`) plays.
-  3. The system assigns the player's DisplayName to an available slot in `RecordNames` / `RecordValues` (capacity of up to 30 players), and increments the participant counter (`IndexText`).
-  4. **Data Recording Begins**: For registered players only, the system periodically polls and extracts coordinate positions `(X, Y, Z)`, head rotation angles (Pitch, Yaw, Roll), avatar rotation angles, and timestamps, appending structured `[MVP_DTC]` entries to the local VRChat log file.
+- **Consent & Tracking Flow**:
+  1. A participant interacts with the in-world `AgreeButton`.
+  2. The clicking player is registered as a consenting participant, and the button is immediately disabled to prevent duplicate presses.
+  3. The player is assigned to an available slot in the tracking capacity (up to 30 players), and the counter increments on the display canvas.
+  4. **Data Recording Begins**: For registered players only, coordinate positions `(X, Y, Z)`, head rotation angles (Pitch, Yaw, Roll), avatar rotation angles, and timestamps are polled periodically and written to the local VRChat log file.
   5. **Non-Consenting Players**: Players who do not click the consent button are never added to tracking slots; no coordinate or tracking data is recorded for them.
 
 #### Log File Location & Format
@@ -442,17 +447,17 @@ Standard output structure:
 }
 ```
 
-#### 🌐 Json URL Creation & Setup Example (Real-World Setup)
+#### 🌐 Json URL Creation & Setup Example (GitHub Gist Example)
 To host the participant list dynamically, you can publish a raw JSON file using GitHub Gist or an external web server:
 
 - **Creating via GitHub Gist**:
   1. Navigate to [GitHub Gist](https://gist.github.com/) and create a new Gist.
-  2. Name the file `VRCanswers2.json` (or any preferred filename) and paste your JSON content.
+  2. Name the file `VRCanswers.json` (or any preferred filename) and paste your JSON content.
   3. Click **"Create public gist"** (or secret gist).
   4. Click the **"Raw"** button at the top right of the file view, and copy the Raw URL from the address bar.
 - **Configured URL Format**:
   - Gist Raw URL Example:  
-    `https://gist.githubusercontent.com/<YOUR_GITHUB_USERNAME>/<GIST_ID>/raw/VRCanswers2.json`
+    `https://gist.githubusercontent.com/<YOUR_GITHUB_USERNAME>/<GIST_ID>/raw/VRCanswers.json`
 - **Unity Inspector Setup**:
   - Select the `MVP_DTC_Online` GameObject in your Hierarchy.
   - In the UDON Behaviour (`Datacollection_Json`), paste the Raw URL into the **`JsonURL`** field.
@@ -472,8 +477,8 @@ To host the participant list dynamically, you can publish a raw JSON file using 
 
 ---
 
-### ☁️ Cloud Storage Endpoint & API Key Preparation (Real-World GAS Implementation)
-To securely receive and save log uploads while preventing unauthorized access from third parties, this project utilizes **Google Apps Script (GAS)** as a serverless webhook endpoint paired with API Key authentication. Anyone can deploy their own endpoint using the following steps:
+### ☁️ Cloud Storage Endpoint & API Key Preparation (GAS Implementation Example)
+To securely receive and save log uploads while preventing unauthorized access from third parties, you can set up a receiving webhook endpoint and authentication API Key using **Google Apps Script (GAS)** or similar services. Follow these steps to prepare your own secure endpoint:
 
 #### ① Create the Google Apps Script Project
 1. Open [Google Drive](https://drive.google.com/) and select **New** ➔ **More** ➔ **Google Apps Script**.
@@ -507,7 +512,7 @@ To securely receive and save log uploads while preventing unauthorized access fr
 2. Under **Script Properties**, click **Add script property**:
    - **Property**: `API_KEY`
    - **Value**: A secure, randomly generated secret token of your choice.
-3. Click **Save script properties**. Keeping the key in properties keeps it protected and out of source code.
+3. Click **Save script properties**.
 
 #### ③ Deploy as Web Application (Generating the Upload URL)
 1. At the top-right of the GAS editor, click **Deploy** ➔ **New deployment**.
@@ -539,8 +544,8 @@ To securely receive and save log uploads while preventing unauthorized access fr
 | Field Name | Location in App | Input Example | Description & Purpose |
 | :--- | :--- | :--- | :--- |
 | **VRChat Player Name** | Application Settings | `VC_Sakurada` (Your VRChat Name) | Identifies host log entries in data records and cloud payloads |
-| **Cloud Storage URL** | Application Settings | `https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec` | Webhook URL from Step ③ where logs are POSTed when VRChat closes |
-| **API Key / Access Token** | Application Settings | `<YOUR_SECRET_API_KEY>` | Secret token from Step ② verified by the GAS endpoint |
+| **Cloud Storage URL** | Application Settings | `https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec` | Your dedicated GAS Web App URL generated in Step ③ |
+| **API Key / Access Token** | Application Settings | `<YOUR_SECRET_API_KEY>` (Your chosen secret key) | Secret authentication key registered in GAS Script Properties in Step ② |
 | **Radar Display Range** | Radar Display Settings | `50m` (Slider: 10m – 200m) | Adjusts visual radius and zoom scale of the 2D radar map |
 | **Center Player** | Radar Display Settings | `World Origin (0,0)` or `VC_Sakurada` | Sets coordinate anchor point for radar visualization |
 
@@ -674,5 +679,8 @@ Tracking and position recording also mirror this two-tiered consent architecture
     ★ [MVP_DTC] PlayerName: 同意辞退（データ記録対象外）
     ```
 ![Agree](Images/Agree.png "Agree")
+
+---
+
 ## Acknowledgement
 This project was supported by MVP Lab (Metaverse Public Lab).
