@@ -44,9 +44,9 @@ VRChatワールド内に設置し、プレイヤーの移動座標や頭部回�
 3. `Assets/MVP_DTC/Prefabs/MVP_DTC.prefab` をヒエラルキーに配置します。
 
 #### UDON Behaviour (Datacollection) の設定
-1. **`Staffnames`**: 記録・管理を行うスタッフの VRChat ID（DisplayName）を設定します。
-2. **`RecordNames`**: 記録対象とするプレイヤー数に応じた Index の Name (Text) を設定します（最大30名）。
-3. **`RecordValues`**: 記録対象とするプレイヤー数に応じた Index の Value (Text) を設定します（最大30名）。
+1. **`Staffnames`**: 記録・管理を行うスタッフの VRChat ID（DisplayName）をマニュアルで追加します。
+2. **`RecordNames`**: 記録対象とするプレイヤー数に応じた Index の Name (Text)が設定されています（最大30名）。
+3. **`RecordValues`**: 記録対象とするプレイヤー数に応じた Index の Value (Text) が設定されています（最大30名）。
 4. **`AgreeButton`**: 参加者が同意を行うためのボタンUIを設定します。
 5. ボタンUIの On Click イベントに、Datacollection UDON Behaviour の `RecordAgree` イベントを設定します。
 
@@ -62,6 +62,16 @@ VRChatワールド内に設置し、プレイヤーの移動座標や頭部回�
 | **IndexText** | UIText | 現在記録対象となっているプレイヤー数を表示するテキスト | CurrentNumber |
 | **MainCanvas** | Canvas | Datacollection デバッグ表示用キャンバス | Datacollection |
 | **ButtonASource** | AudioSource | 同意ボタン押下時に再生されるSE音源 | Agreement |
+
+### ⚙️ 同意ボタンによる記録システムの挙動
+`MVP_DTC` では、ワールド参加者全員のデータを無断で取得するのではなく、**ワールド内に設置された同意ボタン（`AgreeButton`）を自発的に押したプレイヤーのみを対象としてデータを記録**します。
+
+- **同意処理と追跡の流れ**:
+  1. 参加者がワールド内の `AgreeButton`（UIボタン）を押すと、UDONの `RecordAgree` イベントが発火します。
+  2. ボタンを押したプレイヤー（`Networking.LocalPlayer`）が同意者として認識され、二重押し防止のためにボタンが非活性化（クリック不可）となり、同意確認SE（`ButtonASource`）が再生されます。
+  3. システムが管理する記録スロット（`RecordNames` / `RecordValues`：最大30名）の空き枠に、そのプレイヤーの DisplayName が登録され、キャンバス上の現在の記録人数（`IndexText`）がカウントアップされます。
+  4. **データ記録の開始**: 登録されたプレイヤーのみを対象に、定期的な周期でアバターの位置座標 `(X, Y, Z)`、頭部回転角（Pitch, Yaw, Roll）、アバター回転角、タイムスタンプが取得され、ローカルの VRChat ログへ書き出されます。
+  5. **同意していないプレイヤー**: 同意ボタンを押していないプレイヤーは記録スロットに登録されないため、位置・視線データは一切記録されません。
 
 #### ログの出力先
 デフォルト設定では、Windowsのユーザーフォルダ配下の VRChat ログに出力されます：  
@@ -80,25 +90,39 @@ VRChatワールド内に設置し、プレイヤーの移動座標や頭部回�
 ### 外部サーバー設定 (JSON連携)
 MVP_DTC_Online は、外部Webサーバー等に設置した JSON ファイルから記録対象者（`PlayerNames`）およびスタッフ名（`StaffNames`）を動的に取得できます。特定プレイヤーのみを自動記録したい場合に便利です。
 
-JSON フォーマット例：
+#### 📄 JSON フォーマット例
 ```json
 {
   "PlayerNames": [
-    "NAME1",
-    "NAME2",
-    "NAME3",
-    "NAME4"
+    "VC_Sakurada",
+    "Player_A",
+    "Player_B",
+    "Guest_01"
   ],
   "StaffNames": [
-    "StaffName1",
-    "StaffName2"
+    "VC_Sakurada"
   ]
 }
 ```
 
+#### 🌐 Json URL の作成手順と設定例（今回の実例）
+参加者の事前同意リストを動的に読み込ませる場合、GitHub Gist や外部 Web サーバーを利用して Raw JSON の URL を発行します。
+
+- **GitHub Gist での作成手順**:
+  1. [GitHub Gist](https://gist.github.com/) を開き、新規 Gist を作成します。
+  2. ファイル名を `VRCanswers2.json`（または任意の名前）にし、上記フォーマットの JSON を入力します。
+  3. 「Create public gist」（または secret gist）をクリックして保存します。
+  4. 画面右上の **「Raw」** ボタンをクリックし、ブラウザのアドレスバーに表示される Raw URL をコピーします。
+- **実例としての設定 URL**:
+  - Gist Raw URL 例:  
+    `https://gist.githubusercontent.com/Kuniharu-Sakurada/<Gist_ID>/raw/VRCanswers2.json`
+- **Unity 側の設定**:
+  - Hierarchy に配置した `MVP_DTC_Online` の Inspector を開き、UDON Behaviour (`Datacollection_Json`) の **`JsonURL`** に上記の Raw URL を貼り付けます。
+  - ワールド起動時、Udon の `VRCStringDownloader` がこの URL にアクセスしてリストを自動取得し、`PlayerNames` に記載されたプレイヤー（例: `VC_Sakurada` など）が入室すると自動的にトラッキング記録を開始します。
+
 ### Prefabの配置
 1. `Assets/MVP_DTC/Prefabs/MVP_DTC_Online.prefab` をヒエラルキーに配置します。
-2. UDON Behaviour (`Datacollection_Json`) の **`JsonURL`** に、上記 JSON を返す外部サーバーのURLを設定します。
+2. UDON Behaviour (`Datacollection_Json`) の **`JsonURL`** に、上記で取得した JSON の URL を設定します。
 
 ![MVP_DTC_Online](Images/MVP_DTC_Online.png "MVP_DTC_Online")
 
@@ -119,19 +143,29 @@ JSON フォーマット例：
 
 #### Step 3: Webダッシュボードの設定
 1. ブラウザで `http://localhost:5000` にアクセスします。
-2. 左サイドバーで以下の項目を設定します：
+2. 左サイドバーで以下の項目を設定します（下表は実際の設定実例です）：
 
 ![Application](Images/VRChatLogLiveWebStreaming.png "Application")
 
-| 項目名 | 画面上の位置 | 入力内容 | 説明・用途 |
+| 項目名 | 画面上の位置 | 今回の設定実例 | 説明・用途 |
 | :--- | :--- | :--- | :--- |
-| **VRChat プレイヤー名** | アプリ設定 | あなたの VRChat 表示名（例: `Sakurada`） | 記録ログおよびクラウド送信データ内でホストを識別するために使用 |
-| **クラウド保存 URL** | アプリ設定 | 送信先 Webhook URL（例: Google Apps Script WebアプリURL） | VRChat終了時にログデータが自動POSTされる送信先 |
-| **API Key / アクセストークン** | アプリ設定 | 認証トークン（任意） | 外部サーバー側で認証を行う場合に付与 |
-| **レーダー表示範囲** | レーダー表示設定 | スライダー (10m ～ 200m、初期値: `50m`) | 2Dレーダーの表示縮尺・半径を調整 |
-| **中心にするプレイヤー** | レーダー表示設定 | ドロップダウン（ワールド原点 `(0,0)` または検出プレイヤー） | レーダーの中心となる基準点を指定 |
+| **VRChat プレイヤー名** | アプリ設定 | `VC_Sakurada` | 記録ログおよびクラウド送信データ内でホストを識別するために使用 |
+| **クラウド保存 URL** | アプリ設定 | `https://script.google.com/macros/s/AKfycby2pxsHl_7E0XyjK34MDTDo46Ax9sQN5QpRmPa0ZU0aBGNt_uKALshGaiPSgDtVibtnQQ/exec` | Google Apps Script (GAS) をウェブアプリとしてデプロイした保存先 Webhook URL |
+| **API Key / アクセストークン** | アプリ設定 | `VRCLogSecureToken_2026_Xyz` | サーバー/GAS側で照合し不正アクセスを防ぐためのシークレット認証キー |
+| **レーダー表示範囲** | レーダー表示設定 | `50m` (スライダー: 10m ～ 200m) | 2Dレーダーの表示縮尺・半径を調整 |
+| **中心にするプレイヤー** | レーダー表示設定 | `ワールド原点 (0,0)` または `VC_Sakurada` | レーダーの中心となる基準点を指定 |
 
-3. **設定の保存**: 「💾 アプリ設定を保存」をクリックすると `config-live.json` に保存され、次回以降自動ロードされます。
+3. **設定の保存**: 「💾 アプリ設定を保存」をクリックすると、`config-live.json` に以下のように保存され、次回以降自動ロードされます：
+```json
+{
+  "UserName": "VC_Sakurada",
+  "UploadUrl": "https://script.google.com/macros/s/AKfycby2pxsHl_7E0XyjK34MDTDo46Ax9sQN5QpRmPa0ZU0aBGNt_uKALshGaiPSgDtVibtnQQ/exec",
+  "ApiKey": "VRCLogSecureToken_2026_Xyz",
+  "WatchDirectory": "",
+  "SearchPattern": "output_log_*.txt",
+  "Port": 5000
+}
+```
 
 #### Step 4: データ収集の流れ
 1. VRChat 起動中、`VRCLogLiveWebStream.exe` をバックグラウンドで起動しておきます。
@@ -248,12 +282,6 @@ JSON フォーマット例：
     ★ [MVP_DTC] PlayerName: 同意辞退（データ記録対象外）
     ```
 ![Agree](Images/Agree.png "Agree")
----
-
-## 参考文献
-- [VRChat内位置情報・アンケート収集解析ツールYAIBAの紹介](https://note.com/cocu_tan/n/n70972d7646bd)
-- [YAIBA-VRC](https://note.com/cocu_tan/n/n70972d7646bd)
-
 ## 謝辞
 本プロジェクトは MVP Lab（Metaverse Public Lab）の支援により開発されました。
 
@@ -318,6 +346,16 @@ The foundational data collection module that outputs avatar position, rotation, 
 | **MainCanvas** | Canvas | Debug display canvas for Datacollection | Datacollection |
 | **ButtonASource** | AudioSource | Sound effect audio source triggered when consent button is clicked | Agreement |
 
+### ⚙️ Consent Button Tracking Mechanism
+`MVP_DTC` does not record participant data without explicit permission. Instead, **it records spatial tracking data exclusively for players who actively click the in-world Consent Button (`AgreeButton`)**.
+
+- **Consent & Tracking Lifecycle**:
+  1. When a player interacts with the in-world `AgreeButton`, the UDON `RecordAgree` event is triggered.
+  2. The clicking player (`Networking.LocalPlayer`) is registered as a consenting participant. To prevent duplicate clicks, the button is immediately disabled (`interactable = false`) and an audio confirmation cue (`ButtonASource`) plays.
+  3. The system assigns the player's DisplayName to an available slot in `RecordNames` / `RecordValues` (capacity of up to 30 players), and increments the participant counter (`IndexText`).
+  4. **Data Recording Begins**: For registered players only, the system periodically polls and extracts coordinate positions `(X, Y, Z)`, head rotation angles (Pitch, Yaw, Roll), avatar rotation angles, and timestamps, appending structured `[MVP_DTC]` entries to the local VRChat log file.
+  5. **Non-Consenting Players**: Players who do not click the consent button are never added to tracking slots; no coordinate or tracking data is recorded for them.
+
 #### Log File Location & Format
 By default, logs are written to the local VRChat AppData directory:  
 `C:\Users\[USER NAME]\AppData\LocalLow\VRChat\VRChat`
@@ -335,24 +373,40 @@ Standard output structure:
 ### External Server Configuration (JSON)
 `MVP_DTC_Online` can dynamically fetch pre-registered participant lists (`PlayerNames`) and staff credentials (`StaffNames`) from an external JSON URL:
 
+#### 📄 JSON Format Example
 ```json
 {
   "PlayerNames": [
-    "NAME1",
-    "NAME2",
-    "NAME3",
-    "NAME4"
+    "VC_Sakurada",
+    "Player_A",
+    "Player_B",
+    "Guest_01"
   ],
   "StaffNames": [
-    "StaffName1",
-    "StaffName2"
+    "VC_Sakurada"
   ]
 }
 ```
 
+#### 🌐 Json URL Creation & Setup Example (Real-World Setup)
+To host the participant list dynamically, you can publish a raw JSON file using GitHub Gist or an external web server:
+
+- **Creating via GitHub Gist**:
+  1. Navigate to [GitHub Gist](https://gist.github.com/) and create a new Gist.
+  2. Name the file `VRCanswers2.json` (or any preferred filename) and paste your JSON content.
+  3. Click **"Create public gist"** (or secret gist).
+  4. Click the **"Raw"** button at the top right of the file view, and copy the Raw URL from the address bar.
+- **Real-World Configured URL**:
+  - Gist Raw URL Example:  
+    `https://gist.githubusercontent.com/Kuniharu-Sakurada/<Gist_ID>/raw/VRCanswers2.json`
+- **Unity Inspector Setup**:
+  - Select the `MVP_DTC_Online` GameObject in your Hierarchy.
+  - In the UDON Behaviour (`Datacollection_Json`), paste the Raw URL into the **`JsonURL`** field.
+  - On world start, `VRCStringDownloader` retrieves the JSON list and automatically begins tracking designated players (e.g., `VC_Sakurada`) as soon as they enter the instance.
+
 ### Prefab Setup
 1. Place `Assets/MVP_DTC/Prefabs/MVP_DTC_Online.prefab` into your scene hierarchy.
-2. In the UDON Behaviour (`Datacollection_Json`), set **`JsonURL`** to your external JSON endpoint URL.
+2. In the UDON Behaviour (`Datacollection_Json`), set **`JsonURL`** to the JSON URL obtained above.
 
 ![MVP_DTC_Online](Images/MVP_DTC_Online.png "MVP_DTC_Online")
 
@@ -373,19 +427,29 @@ Standard output structure:
 
 #### Step 3: Web Dashboard Configuration
 1. Open your web browser and navigate to: `http://localhost:5000`
-2. Configure settings in the left sidebar:
+2. Configure settings in the left sidebar (the table below reflects the real-world setup used in this project):
 
 ![Application](Images/VRChatLogLiveWebStreaming.png "Application")
 
-| Field Name | Location in App | What to Enter | Description & Purpose |
+| Field Name | Location in App | Real-World Setup Example | Description & Purpose |
 | :--- | :--- | :--- | :--- |
-| **VRChat Player Name** | Application Settings | Your VRChat DisplayName *(e.g., `Sakurada`)* | Identifies host log entries in data records and cloud payloads |
-| **Cloud Storage URL** | Application Settings | Webhook Endpoint URL *(e.g., Google Apps Script URL)* | Destination URL where logs are automatically POSTed when VRChat is closed |
-| **API Key / Access Token** | Application Settings | Secret Token / Password *(Optional)* | Included with HTTP payloads for server-side authorization |
-| **Radar Display Range** | Radar Display Settings | Slider *(10m – 200m, Default: `50m`)* | Adjusts visual radius and zoom scale of the 2D radar map |
-| **Center Player** | Radar Display Settings | Dropdown *(World Origin `(0,0)` or detected player)* | Sets coordinate anchor point for radar visualization |
+| **VRChat Player Name** | Application Settings | `VC_Sakurada` | Identifies host log entries in data records and cloud payloads |
+| **Cloud Storage URL** | Application Settings | `https://script.google.com/macros/s/AKfycby2pxsHl_7E0XyjK34MDTDo46Ax9sQN5QpRmPa0ZU0aBGNt_uKALshGaiPSgDtVibtnQQ/exec` | Google Apps Script (GAS) Web App destination endpoint for automated POST uploads |
+| **API Key / Access Token** | Application Settings | `VRCLogSecureToken_2026_Xyz` | Secret security authentication token verified on the GAS endpoint |
+| **Radar Display Range** | Radar Display Settings | `50m` (Slider: 10m – 200m) | Adjusts visual radius and zoom scale of the 2D radar map |
+| **Center Player** | Radar Display Settings | `World Origin (0,0)` or `VC_Sakurada` | Sets coordinate anchor point for radar visualization |
 
-3. Click **💾 Save Application Settings** to store credentials in `config-live.json`.
+3. Click **💾 Save Application Settings** to store credentials in `config-live.json`. It will automatically reload upon subsequent launches:
+```json
+{
+  "UserName": "VC_Sakurada",
+  "UploadUrl": "https://script.google.com/macros/s/AKfycby2pxsHl_7E0XyjK34MDTDo46Ax9sQN5QpRmPa0ZU0aBGNt_uKALshGaiPSgDtVibtnQQ/exec",
+  "ApiKey": "VRCLogSecureToken_2026_Xyz",
+  "WatchDirectory": "",
+  "SearchPattern": "output_log_*.txt",
+  "Port": 5000
+}
+```
 
 #### Step 4: Data Collection Workflow
 1. Keep `VRCLogLiveWebStream.exe` running in the background during your VRChat session.
@@ -502,11 +566,5 @@ Tracking and position recording also mirror this two-tiered consent architecture
     ★ [MVP_DTC] PlayerName: 同意辞退（データ記録対象外）
     ```
 ![Agree](Images/Agree.png "Agree")
----
-
-## References
-- [VRChat内位置情報・アンケート収集解析ツールYAIBAの紹介](https://note.com/cocu_tan/n/n70972d7646bd)
-- [YAIBA-VRC](https://note.com/cocu_tan/n/n70972d7646bd)
-
 ## Acknowledgement
 This project was supported by MVP Lab (Metaverse Public Lab).
