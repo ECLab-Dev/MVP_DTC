@@ -77,7 +77,7 @@ public class SurveyManager : UdonSharpBehaviour
     public Button dtcConsentAgreeButton;
     public Button dtcConsentDisagreeButton;
     [TextArea(3, 8)]
-    public string dtcConsentNoticeText = "【位置・視線データ収集（MVP_DTC）に関する同意確認】\n\n本ワールドでは研究・統計分析を目的として、プレイヤーの位置および頭部姿勢データ（MVP_DTC）を記録する機能があります。\nデータ収集にご同意いただける方は「同意する」を押してください。\n「同意しない」を押した場合、あなたの位置・視線データは記録されません。";
+    public string dtcConsentNoticeText = "【位置・視線データ収集に関する同意確認】\n\n本ワールドでは研究・統計分析を目的として、プレイヤーの位置および頭部姿勢データを記録する機能があります。\nデータ収集にご同意いただける方は「同意する」を押してください。";
 
     [Header("ナビゲーション & 主催者用コントロール")]
     public GameObject surveyPanel;
@@ -2296,4 +2296,43 @@ public class SurveyManager : UdonSharpBehaviour
         }
         return "";
     }
+
+#if !COMPILER_UDONSHARP && UNITY_EDITOR
+    private void OnValidate()
+    {
+        if (containerConsent == null)
+        {
+            Transform t = transform.Find("SurveyPanel/Container_Consent");
+            if (t != null) containerConsent = t.gameObject;
+        }
+        if (consentNoticeDisplay == null && containerConsent != null)
+        {
+            Transform t = containerConsent.transform.Find("ConsentNoticeDisplay");
+            if (t != null) consentNoticeDisplay = t.GetComponent<Text>();
+        }
+        if (consentNoticeDisplay != null && consentNoticeDisplay.text != consentNoticeText)
+        {
+            consentNoticeDisplay.text = consentNoticeText;
+            UnityEditor.EditorUtility.SetDirty(consentNoticeDisplay);
+        }
+
+        if (containerDtcConsent == null)
+        {
+            Transform t = transform.Find("Container_DtcConsent");
+            if (t == null && transform.parent != null) t = transform.parent.Find("Container_DtcConsent");
+            if (t != null) containerDtcConsent = t.gameObject;
+        }
+        if (dtcConsentNoticeDisplay == null && containerDtcConsent != null)
+        {
+            Transform t = containerDtcConsent.transform.Find("DtcConsentNoticeDisplay");
+            if (t == null) t = containerDtcConsent.transform.Find("ConsentNoticeDisplay");
+            if (t != null) dtcConsentNoticeDisplay = t.GetComponent<Text>();
+        }
+        if (dtcConsentNoticeDisplay != null && dtcConsentNoticeDisplay.text != dtcConsentNoticeText)
+        {
+            dtcConsentNoticeDisplay.text = dtcConsentNoticeText;
+            UnityEditor.EditorUtility.SetDirty(dtcConsentNoticeDisplay);
+        }
+    }
+#endif
 }

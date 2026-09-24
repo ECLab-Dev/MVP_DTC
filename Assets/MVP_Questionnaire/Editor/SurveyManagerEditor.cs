@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using UnityEditor;
 using UnityEditor.Events;
 using VRC.Udon;
+using UdonSharpEditor;
 
 [CustomEditor(typeof(SurveyManager))]
 public class SurveyManagerEditor : Editor
@@ -64,15 +65,95 @@ public class SurveyManagerEditor : Editor
         EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space(5);
+        // 参照が外れている場合は自動解決
+        if (manager.consentNoticeDisplay == null)
+        {
+            GameObject cObj = manager.containerConsent;
+            if (cObj == null && manager.surveyPanel != null)
+            {
+                Transform ct = manager.surveyPanel.transform.Find("Container_Consent");
+                if (ct != null) cObj = ct.gameObject;
+            }
+            if (cObj == null) cObj = GameObject.Find("Container_Consent");
+            if (cObj != null)
+            {
+                manager.containerConsent = cObj;
+                Transform t = cObj.transform.Find("ConsentNoticeDisplay");
+                if (t != null) manager.consentNoticeDisplay = t.GetComponent<Text>();
+            }
+        }
+        if (manager.dtcConsentNoticeDisplay == null)
+        {
+            GameObject dtcObj = manager.containerDtcConsent;
+            if (dtcObj == null) dtcObj = GameObject.Find("Container_DtcConsent");
+            if (dtcObj != null)
+            {
+                manager.containerDtcConsent = dtcObj;
+                Transform t = dtcObj.transform.Find("DtcConsentNoticeDisplay");
+                if (t == null) t = dtcObj.transform.Find("ConsentNoticeDisplay");
+                if (t != null) manager.dtcConsentNoticeDisplay = t.GetComponent<Text>();
+            }
+        }
+
+        EditorGUILayout.Space(5);
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("📜 アンケート ワールド全員モード時の同意確認文面", EditorStyles.boldLabel);
-        manager.consentNoticeText = EditorGUILayout.TextArea(manager.consentNoticeText, GUILayout.Height(60));
+        SerializedProperty consentProp = serializedObject.FindProperty("consentNoticeText");
+        string currentConsentVal = consentProp != null ? consentProp.stringValue : manager.consentNoticeText;
+
+        EditorGUI.BeginChangeCheck();
+        GUIStyle wrapTextAreaStyle = new GUIStyle(EditorStyles.textArea) { wordWrap = true };
+        string newConsent = EditorGUILayout.TextArea(currentConsentVal, wrapTextAreaStyle, GUILayout.Height(70));
+        if (EditorGUI.EndChangeCheck())
+        {
+            if (consentProp != null) consentProp.stringValue = newConsent;
+            manager.consentNoticeText = newConsent;
+
+            if (manager.consentNoticeDisplay != null)
+            {
+                Undo.RecordObject(manager.consentNoticeDisplay, "Update Consent Notice Display");
+                manager.consentNoticeDisplay.text = newConsent;
+                EditorUtility.SetDirty(manager.consentNoticeDisplay);
+            }
+            SaveAndSync(manager);
+        }
+        else if (manager.consentNoticeDisplay != null && manager.consentNoticeDisplay.text != currentConsentVal)
+        {
+            // 不一致がある場合は自動同期
+            Undo.RecordObject(manager.consentNoticeDisplay, "Auto Sync Consent Notice Display");
+            manager.consentNoticeDisplay.text = currentConsentVal;
+            EditorUtility.SetDirty(manager.consentNoticeDisplay);
+        }
         EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space(5);
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("📜 DTC ワールド全員モード時の同意確認文面", EditorStyles.boldLabel);
-        manager.dtcConsentNoticeText = EditorGUILayout.TextArea(manager.dtcConsentNoticeText, GUILayout.Height(60));
+        SerializedProperty dtcConsentProp = serializedObject.FindProperty("dtcConsentNoticeText");
+        string currentDtcConsentVal = dtcConsentProp != null ? dtcConsentProp.stringValue : manager.dtcConsentNoticeText;
+
+        EditorGUI.BeginChangeCheck();
+        string newDtcConsent = EditorGUILayout.TextArea(currentDtcConsentVal, wrapTextAreaStyle, GUILayout.Height(70));
+        if (EditorGUI.EndChangeCheck())
+        {
+            if (dtcConsentProp != null) dtcConsentProp.stringValue = newDtcConsent;
+            manager.dtcConsentNoticeText = newDtcConsent;
+
+            if (manager.dtcConsentNoticeDisplay != null)
+            {
+                Undo.RecordObject(manager.dtcConsentNoticeDisplay, "Update DTC Consent Notice Display");
+                manager.dtcConsentNoticeDisplay.text = newDtcConsent;
+                EditorUtility.SetDirty(manager.dtcConsentNoticeDisplay);
+            }
+            SaveAndSync(manager);
+        }
+        else if (manager.dtcConsentNoticeDisplay != null && manager.dtcConsentNoticeDisplay.text != currentDtcConsentVal)
+        {
+            // 不一致がある場合は自動同期
+            Undo.RecordObject(manager.dtcConsentNoticeDisplay, "Auto Sync DTC Consent Notice Display");
+            manager.dtcConsentNoticeDisplay.text = currentDtcConsentVal;
+            EditorUtility.SetDirty(manager.dtcConsentNoticeDisplay);
+        }
         EditorGUILayout.EndVertical();
 
         EditorGUILayout.Space(10);
@@ -82,9 +163,14 @@ public class SurveyManagerEditor : Editor
         int newQCount = EditorGUILayout.DelayedIntField("アンケートの質問数", qCount);
         if (newQCount != qCount && newQCount >= 0)
         {
+            Undo.RecordObject(manager, "Resize Questions");
             Array.Resize(ref manager.questionTexts, newQCount);
             AutoResizeArrays(manager);
             EditorUtility.SetDirty(manager);
+            if (manager.gameObject.scene.IsValid())
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
+            }
         }
 
         EditorGUILayout.Space(10);
@@ -92,6 +178,7 @@ public class SurveyManagerEditor : Editor
         // 質問ごとの統合設定表示
         if (manager.questionTexts != null)
         {
+            EditorGUI.BeginChangeCheck();
             for (int i = 0; i < manager.questionTexts.Length; i++)
             {
                 EditorGUILayout.BeginVertical("box");
@@ -140,6 +227,14 @@ public class SurveyManagerEditor : Editor
                 EditorGUILayout.EndVertical();
                 EditorGUILayout.Space(5);
             }
+            if (EditorGUI.EndChangeCheck())
+            {
+                EditorUtility.SetDirty(manager);
+                if (manager.gameObject.scene.IsValid())
+                {
+                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
+                }
+            }
         }
 
         EditorGUILayout.Space(15);
@@ -165,7 +260,29 @@ public class SurveyManagerEditor : Editor
             DrawDefaultInspector();
         }
 
+        if (serializedObject.ApplyModifiedProperties())
+        {
+            SaveAndSync(manager);
+        }
+    }
+
+    private void SaveAndSync(SurveyManager manager)
+    {
         serializedObject.ApplyModifiedProperties();
+        EditorUtility.SetDirty(manager);
+        try
+        {
+            UdonSharpEditorUtility.CopyProxyToUdon(manager);
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[SurveyManagerEditor] CopyProxyToUdon error: {e.Message}");
+        }
+        PrefabUtility.RecordPrefabInstancePropertyModifications(manager);
+        if (manager.gameObject.scene.IsValid())
+        {
+            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
+        }
     }
 
     private string GetTypeLabel(int type)
@@ -274,7 +391,21 @@ public class SurveyManagerEditor : Editor
         }
 
         Transform oldPanel = canvasObj.transform.Find("SurveyPanel");
-        if (oldPanel != null) DestroyImmediate(oldPanel.gameObject);
+        if (oldPanel != null)
+        {
+            Transform oldConsent = oldPanel.Find("Container_Consent/ConsentNoticeDisplay");
+            if (oldConsent != null)
+            {
+                Text oldConsentText = oldConsent.GetComponent<Text>();
+                if (oldConsentText != null && !string.IsNullOrEmpty(oldConsentText.text) && oldConsentText.text != manager.consentNoticeText)
+                {
+                    Undo.RecordObject(manager, "Preserve Consent Text");
+                    manager.consentNoticeText = oldConsentText.text;
+                    EditorUtility.SetDirty(manager);
+                }
+            }
+            DestroyImmediate(oldPanel.gameObject);
+        }
         Transform oldRes = canvasObj.transform.Find("ResultPanel");
         if (oldRes != null) DestroyImmediate(oldRes.gameObject);
         Transform oldMaster = canvasObj.transform.Find("MasterControlPanel");
@@ -298,6 +429,18 @@ public class SurveyManagerEditor : Editor
 
         if (oldDtcConsent != null)
         {
+            Transform oldDtcTextTr = oldDtcConsent.Find("DtcConsentNoticeDisplay");
+            if (oldDtcTextTr == null) oldDtcTextTr = oldDtcConsent.Find("ConsentNoticeDisplay");
+            if (oldDtcTextTr != null)
+            {
+                Text oldDtcText = oldDtcTextTr.GetComponent<Text>();
+                if (oldDtcText != null && !string.IsNullOrEmpty(oldDtcText.text) && oldDtcText.text != manager.dtcConsentNoticeText)
+                {
+                    Undo.RecordObject(manager, "Preserve DTC Consent Text");
+                    manager.dtcConsentNoticeText = oldDtcText.text;
+                    EditorUtility.SetDirty(manager);
+                }
+            }
             savedDtcWorldPos = oldDtcConsent.position;
             savedDtcWorldRot = oldDtcConsent.rotation;
             savedDtcScale = oldDtcConsent.localScale;
@@ -530,7 +673,7 @@ public class SurveyManagerEditor : Editor
         manager.containerDtcConsent = dtcConsentObj;
         Transform dtcConsentTr = dtcConsentObj.transform;
 
-        CreateOrGetText(dtcConsentTr, "DtcTitleText", "【位置・視線データ収集 (MVP_DTC) 同意確認】", font, 36, TextAnchor.MiddleCenter, new Vector2(0, 210), new Vector2(920, 60));
+        CreateOrGetText(dtcConsentTr, "DtcTitleText", "【位置・視線データ収集に関する同意確認】", font, 36, TextAnchor.MiddleCenter, new Vector2(0, 210), new Vector2(920, 60));
 
         Text dtcNoticeText = CreateOrGetText(dtcConsentTr, "DtcConsentNoticeDisplay", manager.dtcConsentNoticeText, font, 24, TextAnchor.MiddleCenter, new Vector2(0, 45), new Vector2(900, 220));
         dtcNoticeText.horizontalOverflow = HorizontalWrapMode.Wrap;
