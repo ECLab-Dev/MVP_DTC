@@ -67,9 +67,9 @@ VRChatワールド内に設置し、プレイヤーの移動座標や頭部回�
 `MVP_DTC` では、ワールド参加者全員のデータを無断で取得するのではなく、**ワールド内に設置された同意ボタン（`AgreeButton`）を自発的に押したプレイヤーのみを対象としてデータを記録**します。
 
 - **同意処理と追跡の流れ**:
-  1. 参加者がワールド内の `AgreeButton`（UIボタン）を押すと、UDONの `RecordAgree` イベントが発火します。
-  2. ボタンを押したプレイヤー（`Networking.LocalPlayer`）が同意者として認識され、二重押し防止のためにボタンが非活性化（クリック不可）となり、同意確認SE（`ButtonASource`）が再生されます。
-  3. システムが管理する記録スロット（`RecordNames` / `RecordValues`：最大30名）の空き枠に、そのプレイヤーの DisplayName が登録され、キャンバス上の現在の記録人数（`IndexText`）がカウントアップされます。
+  1. 参加者がワールド内の `AgreeButton`（UIボタン）を押します。
+  2. ボタンを押したプレイヤーが同意者として認識され、二重押し防止のためにボタンが非活性化（クリック不可）されます。
+  3. システムが管理する記録スロット（最大30名）の空き枠に、ボタンを押したプレイヤーが登録され、キャンバス上の現在の記録人数がカウントアップされます。
   4. **データ記録の開始**: 登録されたプレイヤーのみを対象に、定期的な周期でアバターの位置座標 `(X, Y, Z)`、頭部回転角（Pitch, Yaw, Roll）、アバター回転角、タイムスタンプが取得され、ローカルの VRChat ログへ書き出されます。
   5. **同意していないプレイヤー**: 同意ボタンを押していないプレイヤーは記録スロットに登録されないため、位置・視線データは一切記録されません。
 
@@ -105,20 +105,20 @@ MVP_DTC_Online は、外部Webサーバー等に設置した JSON ファイル�
 }
 ```
 
-#### 🌐 Json URL の作成手順と設定例（今回の実例）
+#### 🌐 Json URL の作成手順と設定例（GitHub Gistの実例）
 参加者の事前同意リストを動的に読み込ませる場合、GitHub Gist や外部 Web サーバーを利用して Raw JSON の URL を発行します。
 
 - **GitHub Gist での作成手順**:
   1. [GitHub Gist](https://gist.github.com/) を開き、新規 Gist を作成します。
-  2. ファイル名を `VRCanswers2.json`（または任意の名前）にし、上記フォーマットの JSON を入力します。
+  2. ファイル名を任意の名前にし、上記フォーマットの JSON を入力します。
   3. 「Create public gist」（または secret gist）をクリックして保存します。
   4. 画面右上の **「Raw」** ボタンをクリックし、ブラウザのアドレスバーに表示される Raw URL をコピーします。
-- **実例としての設定 URL**:
+- **実例としての設定 URL の形式**:
   - Gist Raw URL 例:  
-    `https://gist.githubusercontent.com/Kuniharu-Sakurada/<Gist_ID>/raw/VRCanswers2.json`
+    `https://gist.githubusercontent.com/<YOUR_GITHUB_USERNAME>/<GIST_ID>/raw/VRCanswers.json`
 - **Unity 側の設定**:
-  - Hierarchy に配置した `MVP_DTC_Online` の Inspector を開き、UDON Behaviour (`Datacollection_Json`) の **`JsonURL`** に上記の Raw URL を貼り付けます。
-  - ワールド起動時、Udon の `VRCStringDownloader` がこの URL にアクセスしてリストを自動取得し、`PlayerNames` に記載されたプレイヤー（例: `VC_Sakurada` など）が入室すると自動的にトラッキング記録を開始します。
+  - Hierarchy に配置した `MVP_DTC_Online` の Inspector を開き、UDON Behaviourの **`JsonURL`** に上記の Raw URL を貼り付けます。
+  - ワールド起動時、この URL にアクセスしてリストを自動取得し、`PlayerNames` に記載されたプレイヤー（例: `VC_Sakurada` など）が入室すると自動的にトラッキング記録を開始します。
 
 ### Prefabの配置
 1. `Assets/MVP_DTC/Prefabs/MVP_DTC_Online.prefab` をヒエラルキーに配置します。
@@ -132,6 +132,57 @@ MVP_DTC_Online は、外部Webサーバー等に設置した JSON ファイル�
 - ☁️ **クラウド自動アップロード**: VRChat終了時、収集した移動ログおよびアンケート結果を指定Webhook（Google Apps Script等）に自動POST送信。
 - 🎥 **低遅延映像ストリーミング（HLS）**: MediaMTX・FFmpeg と連動し、現場映像をダッシュボード上でリアルタイムモニタリング可能。
 
+---
+
+### ☁️ クラウド保存用 URL と API Key の用意手順（今回の GAS 実装例）
+第三者からの不正アクセスを防ぎつつ安全にログを自動保存するため、今回は **Google Apps Script (GAS)** を利用して受信用 Webhook エンドポイントと認証 API Key を構築しました。以下の手順で自身専用のセキュアなエンドポイントを用意できます。
+
+#### ① Google Apps Script の作成
+1. [Google ドライブ](https://drive.google.com/) を開き、「新規」➔「その他」➔「Google Apps Script」を選択して新規プロジェクトを作成します。
+2. エディタに、POST リクエストを受け取って Google ドライブにテキストファイルとして保存し、スプレッドシートに記録するスクリプト（`doPost(e)`）を記述します。
+   ```javascript
+   function doPost(e) {
+     try {
+       var data = JSON.parse(e.postData.getDataAsString());
+       // API Key による認証チェック
+       var serverApiKey = PropertiesService.getScriptProperties().getProperty("API_KEY");
+       if (serverApiKey && data.apiKey !== serverApiKey) {
+         return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Unauthorized" })).setMimeType(ContentService.MimeType.JSON);
+       }
+       
+       // Google Drive の「VRChatLogs」フォルダに保存
+       var folderName = "VRChatLogs";
+       var folders = DriveApp.getFoldersByName(folderName);
+       var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+       var finalFileName = (data.pcUser || "User") + "_" + data.fileName;
+       var file = folder.createFile(finalFileName, data.content, MimeType.PLAIN_TEXT);
+       
+       return ContentService.createTextOutput(JSON.stringify({ status: "success", fileUrl: file.getUrl() })).setMimeType(ContentService.MimeType.JSON);
+     } catch (err) {
+       return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+     }
+   }
+   ```
+
+#### ② API Key の設定（セキュリティ認証）
+1. GAS エディタ左メニューの **「プロジェクトの設定」**（歯車アイコン）をクリックします。
+2. 画面下部の「スクリプトプロパティ」にて **「スクリプトプロパティを追加」** をクリックします。
+   - **プロパティ名**: `API_KEY`
+   - **値**: あなたが決めた任意のシークレット文字列（推測されにくい文字列）
+3. 「スクリプトプロパティを保存」をクリックします。コード内にキーを直書きしないため安全に管理できます。
+
+#### ③ ウェブアプリとしてのデプロイ（保存先 URL の発行）
+1. GAS エディタ右上の **「デプロイ」** ➔ **「新しいデプロイ」** を選択します。
+2. 歯車アイコン（種類の選択）で **「ウェブアプリ」** を選択します。
+3. 以下の通り設定します：
+   - **説明**: 任意（例: `VRCLogUploadServer`）
+   - **次のユーザーとして実行**: `自分`（作成者の Google アカウント）
+   - **アクセスできるユーザー**: `全員 (Anyone)`  
+     ※ アプリケーションが Google ログインなしでバックグラウンド送信するために必須です。アクセス保護は手順②の API Key 照合で行われます。
+4. **「デプロイ」** をクリックし、表示された **「ウェブアプリの URL」**（`https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec`）をコピーします。
+
+---
+
 ### 🚀 セットアップと使用手順
 #### Step 1: アプリケーションのダウンロード
 1. リポジトリ内の `VRCLogLiveWebStream.zip`（または最新リリース）をダウンロードします。
@@ -143,29 +194,32 @@ MVP_DTC_Online は、外部Webサーバー等に設置した JSON ファイル�
 
 #### Step 3: Webダッシュボードの設定
 1. ブラウザで `http://localhost:5000` にアクセスします。
-2. 左サイドバーで以下の項目を設定します（下表は実際の設定実例です）：
+2. 左サイドバーで、上記で用意した URL や設定を入力します：
 
 ![Application](Images/VRChatLogLiveWebStreaming.png "Application")
 
-| 項目名 | 画面上の位置 | 今回の設定実例 | 説明・用途 |
+| 項目名 | 画面上の位置 | 入力する内容の例 | 説明・用途 |
 | :--- | :--- | :--- | :--- |
-| **VRChat プレイヤー名** | アプリ設定 | `VC_Sakurada` | 記録ログおよびクラウド送信データ内でホストを識別するために使用 |
-| **クラウド保存 URL** | アプリ設定 | `https://script.google.com/macros/s/AKfycby2pxsHl_7E0XyjK34MDTDo46Ax9sQN5QpRmPa0ZU0aBGNt_uKALshGaiPSgDtVibtnQQ/exec` | Google Apps Script (GAS) をウェブアプリとしてデプロイした保存先 Webhook URL |
-| **API Key / アクセストークン** | アプリ設定 | `VRCLogSecureToken_2026_Xyz` | サーバー/GAS側で照合し不正アクセスを防ぐためのシークレット認証キー |
+| **VRChat プレイヤー名** | アプリ設定 | `VC_Sakurada`（あなたの VRChat 名） | 記録ログおよびクラウド送信データ内でホストを識別するために使用 |
+| **クラウド保存 URL** | アプリ設定 | `https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec` | 手順③で発行したあなた専用の GAS ウェブアプリ URL |
+| **API Key / アクセストークン** | アプリ設定 | `<YOUR_SECRET_API_KEY>`（自分で決めた文字列） | 手順②で GAS スクリプトプロパティに登録した秘密の認証キー |
 | **レーダー表示範囲** | レーダー表示設定 | `50m` (スライダー: 10m ～ 200m) | 2Dレーダーの表示縮尺・半径を調整 |
 | **中心にするプレイヤー** | レーダー表示設定 | `ワールド原点 (0,0)` または `VC_Sakurada` | レーダーの中心となる基準点を指定 |
 
-3. **設定の保存**: 「💾 アプリ設定を保存」をクリックすると、`config-live.json` に以下のように保存され、次回以降自動ロードされます：
+3. **設定の保存**: 「💾 アプリ設定を保存」をクリックすると、`config-live.json` に以下のように安全に保存され、次回以降自動ロードされます：
 ```json
 {
   "UserName": "VC_Sakurada",
-  "UploadUrl": "https://script.google.com/macros/s/AKfycby2pxsHl_7E0XyjK34MDTDo46Ax9sQN5QpRmPa0ZU0aBGNt_uKALshGaiPSgDtVibtnQQ/exec",
-  "ApiKey": "VRCLogSecureToken_2026_Xyz",
+  "UploadUrl": "https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec",
+  "ApiKey": "<YOUR_SECRET_API_KEY>",
   "WatchDirectory": "",
   "SearchPattern": "output_log_*.txt",
   "Port": 5000
 }
 ```
+
+> [!WARNING]
+> クラウド保存 URL や API Key は、あなた専用のクラウドストレージに書き込むための認証情報です。第三者への漏洩や不正アップロードを防ぐため、公開リポジトリやパブリックな場所へ直接記載しないようご注意ください。
 
 #### Step 4: データ収集の流れ
 1. VRChat 起動中、`VRCLogLiveWebStream.exe` をバックグラウンドで起動しておきます。
@@ -396,9 +450,9 @@ To host the participant list dynamically, you can publish a raw JSON file using 
   2. Name the file `VRCanswers2.json` (or any preferred filename) and paste your JSON content.
   3. Click **"Create public gist"** (or secret gist).
   4. Click the **"Raw"** button at the top right of the file view, and copy the Raw URL from the address bar.
-- **Real-World Configured URL**:
+- **Configured URL Format**:
   - Gist Raw URL Example:  
-    `https://gist.githubusercontent.com/Kuniharu-Sakurada/<Gist_ID>/raw/VRCanswers2.json`
+    `https://gist.githubusercontent.com/<YOUR_GITHUB_USERNAME>/<GIST_ID>/raw/VRCanswers2.json`
 - **Unity Inspector Setup**:
   - Select the `MVP_DTC_Online` GameObject in your Hierarchy.
   - In the UDON Behaviour (`Datacollection_Json`), paste the Raw URL into the **`JsonURL`** field.
@@ -416,6 +470,57 @@ To host the participant list dynamically, you can publish a raw JSON file using 
 - ☁️ **Automated Cloud Data Upload**: Securely uploads recorded movement logs and survey results to your specified cloud storage endpoint (e.g., Google Apps Script / Webhook) when VRChat is closed.
 - 🎥 **Integrated HLS Video Streaming**: Automatically manages MediaMTX and FFmpeg dependencies to provide low-latency live video streaming directly within the dashboard.
 
+---
+
+### ☁️ Cloud Storage Endpoint & API Key Preparation (Real-World GAS Implementation)
+To securely receive and save log uploads while preventing unauthorized access from third parties, this project utilizes **Google Apps Script (GAS)** as a serverless webhook endpoint paired with API Key authentication. Anyone can deploy their own endpoint using the following steps:
+
+#### ① Create the Google Apps Script Project
+1. Open [Google Drive](https://drive.google.com/) and select **New** ➔ **More** ➔ **Google Apps Script**.
+2. Paste the `doPost(e)` endpoint handler that parses the JSON payload, verifies the API Key, and stores log files directly into a designated Google Drive folder (`VRChatLogs`):
+   ```javascript
+   function doPost(e) {
+     try {
+       var data = JSON.parse(e.postData.getDataAsString());
+       // Verify incoming API Key against Script Properties
+       var serverApiKey = PropertiesService.getScriptProperties().getProperty("API_KEY");
+       if (serverApiKey && data.apiKey !== serverApiKey) {
+         return ContentService.createTextOutput(JSON.stringify({ status: "error", message: "Unauthorized" })).setMimeType(ContentService.MimeType.JSON);
+       }
+       
+       // Save plain text log file into "VRChatLogs" Drive folder
+       var folderName = "VRChatLogs";
+       var folders = DriveApp.getFoldersByName(folderName);
+       var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+       var finalFileName = (data.pcUser || "User") + "_" + data.fileName;
+       var file = folder.createFile(finalFileName, data.content, MimeType.PLAIN_TEXT);
+       
+       return ContentService.createTextOutput(JSON.stringify({ status: "success", fileUrl: file.getUrl() })).setMimeType(ContentService.MimeType.JSON);
+     } catch (err) {
+       return ContentService.createTextOutput(JSON.stringify({ status: "error", message: err.toString() })).setMimeType(ContentService.MimeType.JSON);
+     }
+   }
+   ```
+
+#### ② Configure API Key (Authentication Secret)
+1. In the GAS left navigation panel, click **Project Settings** (gear icon).
+2. Under **Script Properties**, click **Add script property**:
+   - **Property**: `API_KEY`
+   - **Value**: A secure, randomly generated secret token of your choice.
+3. Click **Save script properties**. Keeping the key in properties keeps it protected and out of source code.
+
+#### ③ Deploy as Web Application (Generating the Upload URL)
+1. At the top-right of the GAS editor, click **Deploy** ➔ **New deployment**.
+2. Click the gear icon next to "Select type" and choose **Web app**.
+3. Configure deployment settings:
+   - **Description**: E.g., `VRCLogUploadServer`
+   - **Execute as**: `Me` (your Google Account)
+   - **Who has access**: `Anyone`  
+     *(Required so the background desktop app can transmit logs without an interactive Google login; authorization is strictly enforced by the API Key check).*
+4. Click **Deploy** and copy the resulting **Web App URL** (`https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec`).
+
+---
+
 ### 🚀 Setup & Usage Instructions
 #### Step 1: Download & Extraction
 1. Download `VRCLogLiveWebStream.zip` from the latest release or repository folder.
@@ -427,15 +532,15 @@ To host the participant list dynamically, you can publish a raw JSON file using 
 
 #### Step 3: Web Dashboard Configuration
 1. Open your web browser and navigate to: `http://localhost:5000`
-2. Configure settings in the left sidebar (the table below reflects the real-world setup used in this project):
+2. Configure settings in the left sidebar using the parameters prepared above:
 
 ![Application](Images/VRChatLogLiveWebStreaming.png "Application")
 
-| Field Name | Location in App | Real-World Setup Example | Description & Purpose |
+| Field Name | Location in App | Input Example | Description & Purpose |
 | :--- | :--- | :--- | :--- |
-| **VRChat Player Name** | Application Settings | `VC_Sakurada` | Identifies host log entries in data records and cloud payloads |
-| **Cloud Storage URL** | Application Settings | `https://script.google.com/macros/s/AKfycby2pxsHl_7E0XyjK34MDTDo46Ax9sQN5QpRmPa0ZU0aBGNt_uKALshGaiPSgDtVibtnQQ/exec` | Google Apps Script (GAS) Web App destination endpoint for automated POST uploads |
-| **API Key / Access Token** | Application Settings | `VRCLogSecureToken_2026_Xyz` | Secret security authentication token verified on the GAS endpoint |
+| **VRChat Player Name** | Application Settings | `VC_Sakurada` (Your VRChat Name) | Identifies host log entries in data records and cloud payloads |
+| **Cloud Storage URL** | Application Settings | `https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec` | Webhook URL from Step ③ where logs are POSTed when VRChat closes |
+| **API Key / Access Token** | Application Settings | `<YOUR_SECRET_API_KEY>` | Secret token from Step ② verified by the GAS endpoint |
 | **Radar Display Range** | Radar Display Settings | `50m` (Slider: 10m – 200m) | Adjusts visual radius and zoom scale of the 2D radar map |
 | **Center Player** | Radar Display Settings | `World Origin (0,0)` or `VC_Sakurada` | Sets coordinate anchor point for radar visualization |
 
@@ -443,13 +548,16 @@ To host the participant list dynamically, you can publish a raw JSON file using 
 ```json
 {
   "UserName": "VC_Sakurada",
-  "UploadUrl": "https://script.google.com/macros/s/AKfycby2pxsHl_7E0XyjK34MDTDo46Ax9sQN5QpRmPa0ZU0aBGNt_uKALshGaiPSgDtVibtnQQ/exec",
-  "ApiKey": "VRCLogSecureToken_2026_Xyz",
+  "UploadUrl": "https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec",
+  "ApiKey": "<YOUR_SECRET_API_KEY>",
   "WatchDirectory": "",
   "SearchPattern": "output_log_*.txt",
   "Port": 5000
 }
 ```
+
+> [!WARNING]
+> Your Cloud Storage URL and API Key grant writing access to your private storage. Do not expose or commit these sensitive credentials to public repositories or shared documents.
 
 #### Step 4: Data Collection Workflow
 1. Keep `VRCLogLiveWebStream.exe` running in the background during your VRChat session.
