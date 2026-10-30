@@ -97,7 +97,7 @@ public class SurveyManagerEditor : Editor
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("🔀 出題順ランダム並び替え設定", EditorStyles.boldLabel);
         EditorGUILayout.HelpBox(
-            "出題カテゴリの順番【選択式 → スライダー評価 → 自由記述】は維持したまま、\n" +
+            "出題カテゴリの順番【選択式 → 選択式（グリッド） → スライダー評価 → 自由記述】は維持したまま、\n" +
             "各回答方式の質問項目ごとに一括でランダムな順番に並び替えて出題します。",
             MessageType.None);
 
@@ -264,6 +264,28 @@ public class SurveyManagerEditor : Editor
         }
         EditorGUILayout.EndVertical();
 
+        EditorGUILayout.Space(8);
+
+        // 各カテゴリの共通説明文（VRChat回答画面の上部に表示）
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("📝 各カテゴリの共通説明文 (VRChat回答画面の上部に表示)", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox("各カテゴリシートの1行目に記入した説明文がここに反映されます（空欄のカテゴリは説明文を表示しません）。", MessageType.None);
+        EditorGUI.BeginChangeCheck();
+        string newChoiceDesc = EditorGUILayout.TextField("選択式 の説明文", manager.choiceCategoryDescription ?? "");
+        string newGridDesc = EditorGUILayout.TextField("選択式（グリッド） の説明文", manager.gridCategoryDescription ?? "");
+        string newSliderDesc = EditorGUILayout.TextField("スライダー評価式 の説明文", manager.sliderCategoryDescription ?? "");
+        string newTextDesc = EditorGUILayout.TextField("記述回答式 の説明文", manager.textCategoryDescription ?? "");
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(manager, "Update Category Descriptions");
+            manager.choiceCategoryDescription = newChoiceDesc;
+            manager.gridCategoryDescription = newGridDesc;
+            manager.sliderCategoryDescription = newSliderDesc;
+            manager.textCategoryDescription = newTextDesc;
+            SaveAndSync(manager);
+        }
+        EditorGUILayout.EndVertical();
+
         EditorGUILayout.Space(10);
 
         // 質問数の設定
@@ -296,8 +318,37 @@ public class SurveyManagerEditor : Editor
 
                 manager.questionTexts[i] = EditorGUILayout.TextField("質問文", manager.questionTexts[i]);
 
-                string[] typeNames = new string[] { "選択式 (ボタン)", "スライダー評価式", "記述回答式 (自由入力)" };
-                manager.answerTypes[i] = EditorGUILayout.Popup("回答形式", manager.answerTypes[i], typeNames);
+                // 表示順: 0=選択式(0), 1=選択式（グリッド）(3), 2=スライダー評価式(1), 3=記述回答式(2)
+                string[] typeDisplayNames = new string[] {
+                    "選択式 (ボタン)",
+                    "選択式（グリッド）",
+                    "スライダー評価式",
+                    "記述回答式 (自由入力)"
+                };
+                int[] typeValuesMap = new int[] { 0, 3, 1, 2 };
+                int currentPopupIdx = 0;
+                for (int tIdx = 0; tIdx < typeValuesMap.Length; tIdx++)
+                {
+                    if (typeValuesMap[tIdx] == manager.answerTypes[i])
+                    {
+                        currentPopupIdx = tIdx;
+                        break;
+                    }
+                }
+                int selectedPopupIdx = EditorGUILayout.Popup("回答形式", currentPopupIdx, typeDisplayNames);
+                int newType = typeValuesMap[selectedPopupIdx];
+                if (newType != manager.answerTypes[i])
+                {
+                    manager.answerTypes[i] = newType;
+                    if (newType == 3)
+                    {
+                        if (manager.gridRowCounts != null && i < manager.gridRowCounts.Length && manager.gridRowCounts[i] < 1)
+                            manager.gridRowCounts[i] = 3;
+                        if (manager.gridColCounts != null && i < manager.gridColCounts.Length && manager.gridColCounts[i] < 2)
+                            manager.gridColCounts[i] = 3;
+                    }
+                    AutoResizeArrays(manager);
+                }
 
                 int type = manager.answerTypes[i];
 
@@ -320,6 +371,59 @@ public class SurveyManagerEditor : Editor
                         if (manager.optionLabels != null && labelIdx < manager.optionLabels.Length)
                         {
                             manager.optionLabels[labelIdx] = EditorGUILayout.TextField($"  選択肢 {c + 1} のラベル", manager.optionLabels[labelIdx]);
+                        }
+                    }
+                    EditorGUI.indentLevel--;
+                }
+                else if (type == 3) // 選択式（グリッド）
+                {
+                    EditorGUI.indentLevel++;
+                    EditorGUILayout.HelpBox("各行につき1つ・各列につき1つの選択肢を必須選択するマトリクス表を表示します（列の重複不可）。", MessageType.None);
+
+                    int curRowCount = (manager.gridRowCounts != null && i < manager.gridRowCounts.Length) ? Mathf.Clamp(manager.gridRowCounts[i], 1, 10) : 3;
+                    int newRowCount = EditorGUILayout.IntSlider("行の数 (評価項目数)", curRowCount, 1, 10);
+                    if (manager.gridRowCounts != null && i < manager.gridRowCounts.Length && newRowCount != manager.gridRowCounts[i])
+                    {
+                        manager.gridRowCounts[i] = newRowCount;
+                        if (manager.gridColCounts != null && i < manager.gridColCounts.Length && manager.gridColCounts[i] < newRowCount)
+                        {
+                            manager.gridColCounts[i] = Mathf.Clamp(newRowCount, 2, 10);
+                        }
+                        AutoResizeArrays(manager);
+                    }
+
+                    int rowOffset = (manager.gridRowOffsets != null && i < manager.gridRowOffsets.Length) ? manager.gridRowOffsets[i] : 0;
+                    for (int r = 0; r < newRowCount; r++)
+                    {
+                        int rIdx = rowOffset + r;
+                        if (manager.gridRowLabels != null && rIdx < manager.gridRowLabels.Length)
+                        {
+                            manager.gridRowLabels[rIdx] = EditorGUILayout.TextField($"  行 {r + 1} の項目名", manager.gridRowLabels[rIdx]);
+                        }
+                    }
+
+                    EditorGUILayout.Space(4);
+
+                    int curColCount = (manager.gridColCounts != null && i < manager.gridColCounts.Length) ? Mathf.Clamp(manager.gridColCounts[i], 2, 10) : Mathf.Max(3, newRowCount);
+                    int newColCount = EditorGUILayout.IntSlider("列の数 (選択肢数)", curColCount, 2, 10);
+                    if (manager.gridColCounts != null && i < manager.gridColCounts.Length && newColCount != manager.gridColCounts[i])
+                    {
+                        manager.gridColCounts[i] = newColCount;
+                        AutoResizeArrays(manager);
+                    }
+
+                    if (newColCount < newRowCount)
+                    {
+                        EditorGUILayout.HelpBox($"1列につき1回答に制限されているため、全 {newRowCount} 行に回答させるには「列の数」を {newRowCount} 以上に設定してください。", MessageType.Warning);
+                    }
+
+                    int colOffset = (manager.gridColOffsets != null && i < manager.gridColOffsets.Length) ? manager.gridColOffsets[i] : 0;
+                    for (int c = 0; c < newColCount; c++)
+                    {
+                        int cIdx = colOffset + c;
+                        if (manager.gridColLabels != null && cIdx < manager.gridColLabels.Length)
+                        {
+                            manager.gridColLabels[cIdx] = EditorGUILayout.TextField($"  列 {c + 1} の選択肢", manager.gridColLabels[cIdx]);
                         }
                     }
                     EditorGUI.indentLevel--;
@@ -352,6 +456,10 @@ public class SurveyManagerEditor : Editor
         }
 
         EditorGUILayout.Space(15);
+        if (manager.surveyPanel != null && manager.containerGrid == null)
+        {
+            EditorGUILayout.HelpBox("💡 「選択式（グリッド）」用のUIコンテナがまだシーン内に生成されていません。\n下の「★ UIを自動生成・一括セットアップ」ボタンを押してUIを更新してください。", MessageType.Warning);
+        }
         GUI.backgroundColor = new Color(0.3f, 0.8f, 0.4f);
         if (GUILayout.Button("★ UIを自動生成・一括セットアップ (VRChatサイズ最適化)", GUILayout.Height(45)))
         {
@@ -568,6 +676,14 @@ public class SurveyManagerEditor : Editor
         sb.AppendLine($"  \"consentNoticeText\": {EscapeJsonString(manager.consentNoticeText)},");
         sb.AppendLine($"  \"dtcConsentTitleText\": {EscapeJsonString(manager.dtcConsentTitleText)},");
         sb.AppendLine($"  \"dtcConsentNoticeText\": {EscapeJsonString(manager.dtcConsentNoticeText)},");
+        if (!string.IsNullOrEmpty(manager.choiceCategoryDescription))
+            sb.AppendLine($"  \"choiceCategoryDescription\": {EscapeJsonString(manager.choiceCategoryDescription)},");
+        if (!string.IsNullOrEmpty(manager.gridCategoryDescription))
+            sb.AppendLine($"  \"gridCategoryDescription\": {EscapeJsonString(manager.gridCategoryDescription)},");
+        if (!string.IsNullOrEmpty(manager.sliderCategoryDescription))
+            sb.AppendLine($"  \"sliderCategoryDescription\": {EscapeJsonString(manager.sliderCategoryDescription)},");
+        if (!string.IsNullOrEmpty(manager.textCategoryDescription))
+            sb.AppendLine($"  \"textCategoryDescription\": {EscapeJsonString(manager.textCategoryDescription)},");
         sb.AppendLine("  \"questions\": [");
 
         int qCount = manager.questionTexts != null ? manager.questionTexts.Length : 0;
@@ -592,6 +708,37 @@ public class SurveyManagerEditor : Editor
                         : $"選択肢 {c + 1}";
                     if (c > 0) sb.Append(", ");
                     sb.Append(EscapeJsonString(opt));
+                }
+                sb.AppendLine("]");
+            }
+            else if (type == 3)
+            {
+                sb.AppendLine("      \"type\": 3,");
+                int rCount = (manager.gridRowCounts != null && i < manager.gridRowCounts.Length) ? Mathf.Max(1, manager.gridRowCounts[i]) : 2;
+                int rOffset = (manager.gridRowOffsets != null && i < manager.gridRowOffsets.Length) ? manager.gridRowOffsets[i] : 0;
+                sb.Append("      \"rows\": [");
+                for (int r = 0; r < rCount; r++)
+                {
+                    int idx = rOffset + r;
+                    string rLbl = (manager.gridRowLabels != null && idx < manager.gridRowLabels.Length && !string.IsNullOrEmpty(manager.gridRowLabels[idx]))
+                        ? manager.gridRowLabels[idx]
+                        : $"項目 {r + 1}";
+                    if (r > 0) sb.Append(", ");
+                    sb.Append(EscapeJsonString(rLbl));
+                }
+                sb.AppendLine("],");
+
+                int cCount = (manager.gridColCounts != null && i < manager.gridColCounts.Length) ? Mathf.Max(2, manager.gridColCounts[i]) : 3;
+                int cOffset = (manager.gridColOffsets != null && i < manager.gridColOffsets.Length) ? manager.gridColOffsets[i] : 0;
+                sb.Append("      \"columns\": [");
+                for (int c = 0; c < cCount; c++)
+                {
+                    int idx = cOffset + c;
+                    string cLbl = (manager.gridColLabels != null && idx < manager.gridColLabels.Length && !string.IsNullOrEmpty(manager.gridColLabels[idx]))
+                        ? manager.gridColLabels[idx]
+                        : $"選択肢 {c + 1}";
+                    if (c > 0) sb.Append(", ");
+                    sb.Append(EscapeJsonString(cLbl));
                 }
                 sb.AppendLine("]");
             }
@@ -657,6 +804,7 @@ public class SurveyManagerEditor : Editor
             case 0: return "[選択式]";
             case 1: return "[スライダー評価式]";
             case 2: return "[記述回答式]";
+            case 3: return "[選択式（グリッド）]";
             default: return "[不明]";
         }
     }
@@ -824,6 +972,20 @@ public class SurveyManagerEditor : Editor
         manager.ratingValueText = null;
         manager.containerTextInput = null;
         manager.inputFieldArea = null;
+        manager.containerGrid = null;
+        manager.gridScrollRect = null;
+        manager.gridScrollContent = null;
+        manager.gridCornerHeaderText = null;
+        manager.gridColHeaderTexts = new Text[10];
+        manager.gridRowObjects = new GameObject[20];
+        manager.gridRowBgImages = new Image[20];
+        manager.gridRowLabelTexts = new Text[20];
+        manager.gridCellButtons = new GameObject[120];
+        manager.gridCellButtonImages = new Image[120];
+        manager.gridCellButtonTexts = new Text[120];
+        manager.gridSubmitButton = null;
+        manager.gridSubmitButtonImage = null;
+        manager.gridSubmitButtonText = null;
         manager.containerConsent = null;
         manager.consentNoticeDisplay = null;
         manager.consentAgreeButton = null;
@@ -834,6 +996,7 @@ public class SurveyManagerEditor : Editor
         manager.dtcConsentAgreeButton = null;
         manager.dtcConsentDisagreeButton = null;
         manager.surveyPanel = null;
+        manager.categoryDescriptionText = null;
         manager.resultPanel = null;
         manager.resultMessageText = null;
         manager.masterControlPanel = null;
@@ -862,8 +1025,13 @@ public class SurveyManagerEditor : Editor
         pObj.GetComponent<Image>().color = new Color(0.12f, 0.12f, 0.16f, 0.95f);
         manager.surveyPanel = pObj;
 
-        // TitleText & QuestionText
-        manager.titleText = CreateOrGetText(panelTr, "TitleText", $"質問 (1 / {qCount})", font, 36, TextAnchor.MiddleCenter, new Vector2(0, 220), new Vector2(900, 60));
+        // TitleText, CategoryDescriptionText & QuestionText
+        manager.titleText = CreateOrGetText(panelTr, "TitleText", $"質問 (1 / {qCount})", font, 36, TextAnchor.MiddleCenter, new Vector2(0, 224), new Vector2(900, 56));
+        manager.categoryDescriptionText = CreateOrGetText(panelTr, "CategoryDescriptionText", "", font, 21, TextAnchor.MiddleCenter, new Vector2(0, 196), new Vector2(900, 56));
+        manager.categoryDescriptionText.color = new Color(0.68f, 0.85f, 1.0f, 1f);
+        manager.categoryDescriptionText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        manager.categoryDescriptionText.verticalOverflow = VerticalWrapMode.Overflow;
+        manager.categoryDescriptionText.gameObject.SetActive(false);
         manager.questionText = CreateOrGetText(panelTr, "QuestionText", "質問文がここに入ります", font, 32, TextAnchor.MiddleCenter, new Vector2(0, 130), new Vector2(900, 100));
 
         // Container_Choice (選択式)
@@ -958,6 +1126,166 @@ public class SurveyManagerEditor : Editor
         manager.inputFieldArea = inputComp;
 
         CreateButtonWithEvent(txtTr, "Btn_SubmitText", "送信する", font, new Vector2(0, -65), new Vector2(240, 75), 28, manager, "OnSubmitTextAnswer");
+
+        // Container_Grid (選択式（グリッド）)
+        GameObject gridObj = new GameObject("Container_Grid", typeof(RectTransform));
+        gridObj.transform.SetParent(panelTr, false);
+        Transform gridTr = gridObj.transform;
+        RectTransform gridRt = gridObj.GetComponent<RectTransform>();
+        gridRt.anchoredPosition = new Vector2(0, -85);
+        gridRt.sizeDelta = new Vector2(940, 410);
+        manager.containerGrid = gridObj;
+
+        // 上部: 列見出しバー
+        GameObject headerBarObj = new GameObject("GridHeaderBar", typeof(RectTransform), typeof(Image));
+        headerBarObj.transform.SetParent(gridTr, false);
+        RectTransform hbRt = headerBarObj.GetComponent<RectTransform>();
+        hbRt.anchoredPosition = new Vector2(0, 178);
+        hbRt.sizeDelta = new Vector2(900, 46);
+        Image hbImg = headerBarObj.GetComponent<Image>();
+        hbImg.color = new Color(0.18f, 0.22f, 0.32f, 0.92f);
+        hbImg.raycastTarget = false;
+
+        Text cornerTxt = CreateOrGetText(headerBarObj.transform, "CornerHeaderText", "項目 \\ 選択肢", font, 17, TextAnchor.MiddleLeft, new Vector2(-300, 0), new Vector2(280, 42));
+        cornerTxt.color = new Color(0.72f, 0.82f, 0.94f, 1f);
+        manager.gridCornerHeaderText = cornerTxt;
+
+        int maxGridCols = 10;
+        manager.gridColHeaderTexts = new Text[maxGridCols];
+        for (int c = 0; c < maxGridCols; c++)
+        {
+            Text chTxt = CreateOrGetText(headerBarObj.transform, $"ColHeader{c}", $"選択肢 {c + 1}", font, 18, TextAnchor.MiddleCenter, new Vector2(0, 0), new Vector2(100, 44));
+            chTxt.horizontalOverflow = HorizontalWrapMode.Wrap;
+            chTxt.verticalOverflow = VerticalWrapMode.Truncate;
+            chTxt.color = new Color(0.92f, 0.96f, 1f, 1f);
+            if (c >= 3) chTxt.gameObject.SetActive(false);
+            manager.gridColHeaderTexts[c] = chTxt;
+        }
+
+        // 中央: スクロール対応マトリクス領域
+        GameObject gScrollObj = new GameObject("GridScrollView", typeof(RectTransform), typeof(Image), typeof(ScrollRect));
+        gScrollObj.transform.SetParent(gridTr, false);
+        RectTransform gScrollRt = gScrollObj.GetComponent<RectTransform>();
+        gScrollRt.anchoredPosition = new Vector2(0, 8);
+        gScrollRt.sizeDelta = new Vector2(900, 284);
+        Image gScrollBg = gScrollObj.GetComponent<Image>();
+        gScrollBg.color = new Color(0.08f, 0.09f, 0.13f, 0.65f);
+        gScrollBg.raycastTarget = true;
+
+        GameObject gViewportObj = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D));
+        gViewportObj.transform.SetParent(gScrollObj.transform, false);
+        RectTransform gViewportRt = gViewportObj.GetComponent<RectTransform>();
+        gViewportRt.anchorMin = Vector2.zero;
+        gViewportRt.anchorMax = Vector2.one;
+        gViewportRt.offsetMin = Vector2.zero;
+        gViewportRt.offsetMax = Vector2.zero;
+        Image gViewportImg = gViewportObj.GetComponent<Image>();
+        gViewportImg.color = new Color(0f, 0f, 0f, 0.01f);
+        gViewportImg.raycastTarget = true;
+
+        GameObject gContentObj = new GameObject("Content", typeof(RectTransform));
+        gContentObj.transform.SetParent(gViewportObj.transform, false);
+        RectTransform gContentRt = gContentObj.GetComponent<RectTransform>();
+        gContentRt.anchorMin = new Vector2(0.5f, 1f);
+        gContentRt.anchorMax = new Vector2(0.5f, 1f);
+        gContentRt.pivot = new Vector2(0.5f, 1f);
+        gContentRt.anchoredPosition = Vector2.zero;
+        gContentRt.sizeDelta = new Vector2(900, 284);
+
+        GameObject vScrollbarObj = DefaultControls.CreateScrollbar(res);
+        vScrollbarObj.name = "Scrollbar Vertical";
+        vScrollbarObj.transform.SetParent(gScrollObj.transform, false);
+        Scrollbar vSb = vScrollbarObj.GetComponent<Scrollbar>();
+        vSb.SetDirection(Scrollbar.Direction.BottomToTop, true);
+        RectTransform vSbRt = vScrollbarObj.GetComponent<RectTransform>();
+        vSbRt.anchorMin = new Vector2(1f, 0f);
+        vSbRt.anchorMax = new Vector2(1f, 1f);
+        vSbRt.pivot = new Vector2(1f, 0.5f);
+        vSbRt.anchoredPosition = new Vector2(-2f, 0f);
+        vSbRt.sizeDelta = new Vector2(14f, -8f);
+        Image vSbBg = vScrollbarObj.GetComponent<Image>();
+        if (vSbBg != null) vSbBg.color = new Color(0.14f, 0.16f, 0.22f, 0.85f);
+        if (vSb.targetGraphic != null) vSb.targetGraphic.color = new Color(0.45f, 0.72f, 0.95f, 0.9f);
+
+        ScrollRect gSr = gScrollObj.GetComponent<ScrollRect>();
+        gSr.content = gContentRt;
+        gSr.viewport = gViewportRt;
+        gSr.horizontal = false;
+        gSr.vertical = true;
+        gSr.movementType = ScrollRect.MovementType.Clamped;
+        gSr.scrollSensitivity = 25f;
+        gSr.verticalScrollbar = vSb;
+        gSr.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHide;
+
+        manager.gridScrollRect = gSr;
+        manager.gridScrollContent = gContentRt;
+
+        int maxGridRows = 20;
+        manager.gridRowObjects = new GameObject[maxGridRows];
+        manager.gridRowBgImages = new Image[maxGridRows];
+        manager.gridRowLabelTexts = new Text[maxGridRows];
+        for (int r = 0; r < maxGridRows; r++)
+        {
+            GameObject rowObj = new GameObject($"GridRow{r}", typeof(RectTransform), typeof(Image));
+            rowObj.transform.SetParent(gContentRt, false);
+            RectTransform rowRt = rowObj.GetComponent<RectTransform>();
+            rowRt.anchorMin = new Vector2(0.5f, 1f);
+            rowRt.anchorMax = new Vector2(0.5f, 1f);
+            rowRt.pivot = new Vector2(0.5f, 0.5f);
+            rowRt.anchoredPosition = new Vector2(-10f, -38f - r * 76f);
+            rowRt.sizeDelta = new Vector2(880f, 68f);
+
+            Image rowBg = rowObj.GetComponent<Image>();
+            rowBg.color = (r % 2 == 0) ? new Color(1f, 1f, 1f, 0.05f) : new Color(1f, 1f, 1f, 0.10f);
+            rowBg.raycastTarget = false;
+
+            Text rLabel = CreateOrGetText(rowObj.transform, "RowLabel", $"項目 {r + 1}", font, 20, TextAnchor.MiddleLeft, new Vector2(12f, 0f), new Vector2(280f, 60f));
+            rLabel.horizontalOverflow = HorizontalWrapMode.Wrap;
+            rLabel.verticalOverflow = VerticalWrapMode.Truncate;
+            RectTransform rlRt = rLabel.GetComponent<RectTransform>();
+            rlRt.anchorMin = new Vector2(0f, 0.5f);
+            rlRt.anchorMax = new Vector2(0f, 0.5f);
+            rlRt.pivot = new Vector2(0f, 0.5f);
+            rlRt.anchoredPosition = new Vector2(12f, 0f);
+
+            if (r >= 3) rowObj.SetActive(false);
+            manager.gridRowObjects[r] = rowObj;
+            manager.gridRowBgImages[r] = rowBg;
+            manager.gridRowLabelTexts[r] = rLabel;
+        }
+
+        int maxGridCells = 120;
+        manager.gridCellButtons = new GameObject[maxGridCells];
+        manager.gridCellButtonImages = new Image[maxGridCells];
+        manager.gridCellButtonTexts = new Text[maxGridCells];
+        for (int k = 0; k < maxGridCells; k++)
+        {
+            GameObject cellBtn = CreateButtonWithEvent(gContentRt, $"Btn_GridCell{k}", "○", font, Vector2.zero, new Vector2(72f, 44f), 24, manager, $"OnGridCell{k}");
+            RectTransform cbRt = cellBtn.GetComponent<RectTransform>();
+            cbRt.anchorMin = new Vector2(0.5f, 1f);
+            cbRt.anchorMax = new Vector2(0.5f, 1f);
+            cbRt.pivot = new Vector2(0.5f, 0.5f);
+
+            Image cbImg = cellBtn.GetComponent<Image>();
+            if (cbImg != null) cbImg.color = new Color(0.22f, 0.25f, 0.34f, 1f);
+            Text cbTxt = cellBtn.GetComponentInChildren<Text>();
+            if (cbTxt != null) cbTxt.color = new Color(0.78f, 0.82f, 0.88f, 1f);
+
+            if (k >= 9) cellBtn.SetActive(false);
+            manager.gridCellButtons[k] = cellBtn;
+            manager.gridCellButtonImages[k] = cbImg;
+            manager.gridCellButtonTexts[k] = cbTxt;
+        }
+
+        GameObject submitGridBtnObj = CreateButtonWithEvent(gridTr, "Btn_SubmitGrid", "各行・各列1つずつ選択してください", font, new Vector2(0, -172), new Vector2(480, 56), 21, manager, "OnSubmitGrid");
+        manager.gridSubmitButton = submitGridBtnObj.GetComponent<Button>();
+        manager.gridSubmitButtonImage = submitGridBtnObj.GetComponent<Image>();
+        manager.gridSubmitButtonText = submitGridBtnObj.GetComponentInChildren<Text>();
+        if (manager.gridSubmitButtonImage != null) manager.gridSubmitButtonImage.color = new Color(0.32f, 0.34f, 0.40f, 1f);
+        if (manager.gridSubmitButtonText != null) manager.gridSubmitButtonText.color = new Color(0.8f, 0.8f, 0.8f, 1f);
+        if (manager.gridSubmitButton != null) manager.gridSubmitButton.interactable = false;
+
+        gridObj.SetActive(false);
 
         // Container_Consent (同意確認画面)
         GameObject consentObj = new GameObject("Container_Consent", typeof(RectTransform));
@@ -1348,6 +1676,85 @@ public class SurveyManagerEditor : Editor
 
         manager.optionOffsets = newOffsets;
         manager.optionLabels = newLabels;
+
+        // 選択式（グリッド）用の行・列配列をリサイズ＆既存ラベル保持
+        int oldGridRowLen = (manager.gridRowCounts != null) ? manager.gridRowCounts.Length : 0;
+        Array.Resize(ref manager.gridRowCounts, qCount);
+        for (int i = oldGridRowLen; i < qCount; i++)
+        {
+            if (manager.answerTypes[i] == 3 && manager.gridRowCounts[i] < 1) manager.gridRowCounts[i] = 3;
+        }
+
+        int oldGridColLen = (manager.gridColCounts != null) ? manager.gridColCounts.Length : 0;
+        Array.Resize(ref manager.gridColCounts, qCount);
+        for (int i = oldGridColLen; i < qCount; i++)
+        {
+            if (manager.answerTypes[i] == 3 && manager.gridColCounts[i] < 2) manager.gridColCounts[i] = 3;
+        }
+
+        int[] oldRowOffsets = manager.gridRowOffsets;
+        string[] oldRowLabels = manager.gridRowLabels;
+        int[] newRowOffsets = new int[qCount];
+        int totalRowsNeeded = 0;
+        for (int i = 0; i < qCount; i++)
+        {
+            newRowOffsets[i] = totalRowsNeeded;
+            int rSlots = Mathf.Max(4, manager.gridRowCounts[i]);
+            totalRowsNeeded += rSlots;
+        }
+        string[] newRowLabels = new string[totalRowsNeeded];
+        for (int i = 0; i < qCount; i++)
+        {
+            int rSlots = Mathf.Max(4, manager.gridRowCounts[i]);
+            int oldBase = (oldRowOffsets != null && i < oldRowOffsets.Length) ? oldRowOffsets[i] : (i * 4);
+            int nextOldBase = (oldRowOffsets != null && i + 1 < oldRowOffsets.Length)
+                ? oldRowOffsets[i + 1]
+                : (oldRowLabels != null ? oldRowLabels.Length : 0);
+            int oldSlotCount = Mathf.Max(0, nextOldBase - oldBase);
+            for (int r = 0; r < rSlots; r++)
+            {
+                int newIdx = newRowOffsets[i] + r;
+                int oldIdx = oldBase + r;
+                if (oldRowLabels != null && r < oldSlotCount && oldIdx >= 0 && oldIdx < oldRowLabels.Length)
+                {
+                    newRowLabels[newIdx] = oldRowLabels[oldIdx];
+                }
+            }
+        }
+        manager.gridRowOffsets = newRowOffsets;
+        manager.gridRowLabels = newRowLabels;
+
+        int[] oldColOffsets = manager.gridColOffsets;
+        string[] oldColLabels = manager.gridColLabels;
+        int[] newColOffsets = new int[qCount];
+        int totalColsNeeded = 0;
+        for (int i = 0; i < qCount; i++)
+        {
+            newColOffsets[i] = totalColsNeeded;
+            int cSlots = Mathf.Max(6, manager.gridColCounts[i]);
+            totalColsNeeded += cSlots;
+        }
+        string[] newColLabels = new string[totalColsNeeded];
+        for (int i = 0; i < qCount; i++)
+        {
+            int cSlots = Mathf.Max(6, manager.gridColCounts[i]);
+            int oldBase = (oldColOffsets != null && i < oldColOffsets.Length) ? oldColOffsets[i] : (i * 6);
+            int nextOldBase = (oldColOffsets != null && i + 1 < oldColOffsets.Length)
+                ? oldColOffsets[i + 1]
+                : (oldColLabels != null ? oldColLabels.Length : 0);
+            int oldSlotCount = Mathf.Max(0, nextOldBase - oldBase);
+            for (int c = 0; c < cSlots; c++)
+            {
+                int newIdx = newColOffsets[i] + c;
+                int oldIdx = oldBase + c;
+                if (oldColLabels != null && c < oldSlotCount && oldIdx >= 0 && oldIdx < oldColLabels.Length)
+                {
+                    newColLabels[newIdx] = oldColLabels[oldIdx];
+                }
+            }
+        }
+        manager.gridColOffsets = newColOffsets;
+        manager.gridColLabels = newColLabels;
     }
 
     private Text CreateOrGetText(Transform parent, string name, string defaultText, Font font, int fontSize, TextAnchor alignment, Vector2 pos, Vector2 size)

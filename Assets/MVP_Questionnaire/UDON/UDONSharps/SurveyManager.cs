@@ -26,7 +26,7 @@ public class SurveyManager : UdonSharpBehaviour
         "ご意見・ご感想を自由にご記述ください"
     };
 
-    [Tooltip("回答形式のタイプ (0: 選択式, 1: スライダー評価式, 2: 記述回答式)")]
+    [Tooltip("回答形式のタイプ (0: 選択式, 1: スライダー評価式, 2: 記述回答式, 3: 選択式（グリッド）)")]
     public int[] answerTypes = new int[] { 0, 0, 1, 2 };
 
     [Tooltip("選択式の場合の択数 (例: 2択なら2, 3択なら3, 4択なら4)")]
@@ -46,6 +46,37 @@ public class SurveyManager : UdonSharpBehaviour
     [Tooltip("スライダー評価式の場合の最大評価値 (例: 5なら1~5段階, 10なら1~10段階)")]
     public int[] sliderMaxValues = new int[] { 5, 5, 5, 5 };
 
+    [Tooltip("選択式（グリッド）の場合の行数（評価項目数）")]
+    public int[] gridRowCounts = new int[] { 0, 0, 0, 0 };
+
+    [Tooltip("選択式（グリッド）の各質問の行ラベル開始インデックス")]
+    public int[] gridRowOffsets;
+
+    [Tooltip("選択式（グリッド）の行ラベル名リスト")]
+    public string[] gridRowLabels;
+
+    [Tooltip("選択式（グリッド）の場合の列数（選択肢数）")]
+    public int[] gridColCounts = new int[] { 0, 0, 0, 0 };
+
+    [Tooltip("選択式（グリッド）の各質問の列ラベル開始インデックス")]
+    public int[] gridColOffsets;
+
+    [Tooltip("選択式（グリッド）の列ラベル名リスト")]
+    public string[] gridColLabels;
+
+    [Header("カテゴリ別の共通説明文 (VRChat画面上部に表示)")]
+    [Tooltip("選択式 (type=0) の質問画面上部に表示する説明文")]
+    public string choiceCategoryDescription = "";
+
+    [Tooltip("選択式（グリッド） (type=3) の質問画面上部に表示する説明文")]
+    public string gridCategoryDescription = "";
+
+    [Tooltip("スライダー評価式 (type=1) の質問画面上部に表示する説明文")]
+    public string sliderCategoryDescription = "";
+
+    [Tooltip("記述回答式 (type=2) の質問画面上部に表示する説明文")]
+    public string textCategoryDescription = "";
+
     [Header("外部 UdonBehaviour 参照 & 変数設定")]
     [Tooltip("RecordMasterNames 及び JsonNamesString が格納されている外部 UdonBehaviour")]
     public UdonBehaviour targetUdonBehaviour;
@@ -61,6 +92,7 @@ public class SurveyManager : UdonSharpBehaviour
 
     [Header("UI要素参照")]
     public Text titleText;
+    public Text categoryDescriptionText;
     public Text questionText;
 
     [Header("回答コンテナ")]
@@ -74,6 +106,22 @@ public class SurveyManager : UdonSharpBehaviour
 
     public GameObject containerTextInput;
     public InputField inputFieldArea;
+
+    [Header("選択式（グリッド）コンテナ UI参照")]
+    public GameObject containerGrid;
+    public ScrollRect gridScrollRect;
+    public RectTransform gridScrollContent;
+    public Text gridCornerHeaderText;
+    public Text[] gridColHeaderTexts;
+    public GameObject[] gridRowObjects;
+    public Image[] gridRowBgImages;
+    public Text[] gridRowLabelTexts;
+    public GameObject[] gridCellButtons;
+    public Image[] gridCellButtonImages;
+    public Text[] gridCellButtonTexts;
+    public Button gridSubmitButton;
+    public Image gridSubmitButtonImage;
+    public Text gridSubmitButtonText;
 
     [Header("アンケート同意確認画面 UIコンテナ参照")]
     public GameObject containerConsent;
@@ -123,7 +171,7 @@ public class SurveyManager : UdonSharpBehaviour
     public int initialTargetMode = 0; // 0: リスト限定, 1: ワールド全員
 
     [Header("出題順ランダム並び替え設定")]
-    [Tooltip("有効にすると、カテゴリ順(選択式→スライダー評価→自由記述)を維持したまま、各カテゴリ内の質問順を一括でランダムに並び替えて出題します")]
+    [Tooltip("有効にすると、カテゴリ順(選択式→選択式（グリッド）→スライダー評価→自由記述)を維持したまま、各カテゴリ内の質問順を一括でランダムに並び替えて出題します")]
     public bool shuffleQuestionsWithinCategory = false;
 
     // ネットワーク同期変数
@@ -139,9 +187,12 @@ public class SurveyManager : UdonSharpBehaviour
 
     // 内部状態変数
     private int currentIndex = 0;
-    private int[] questionOrder; // 出題順の質問インデックス配列 (選択式 -> スライダー -> 自由記述)
+    private int[] questionOrder; // 出題順の質問インデックス配列 (選択式 -> 選択式（グリッド） -> スライダー -> 自由記述)
     private int[] userAnswers;
     private string[] userTextAnswers;
+    private int currentGridRowCount = 0;
+    private int currentGridColCount = 0;
+    private int[] currentGridRowSelections;
     private bool hasAnswered = false;
     private string lastProcessedLog = "";
 
@@ -466,6 +517,30 @@ public class SurveyManager : UdonSharpBehaviour
                 if (dtcConsentNoticeDisplay != null) dtcConsentNoticeDisplay.text = dtcConsentNoticeText;
             }
 
+            // 各カテゴリの共通説明文の取得（空欄の場合はリセット）
+            choiceCategoryDescription = "";
+            gridCategoryDescription = "";
+            sliderCategoryDescription = "";
+            textCategoryDescription = "";
+
+            DataToken catDescToken;
+            if (rootDict.TryGetValue("choiceCategoryDescription", out catDescToken) && catDescToken.TokenType == TokenType.String)
+            {
+                choiceCategoryDescription = catDescToken.String;
+            }
+            if (rootDict.TryGetValue("gridCategoryDescription", out catDescToken) && catDescToken.TokenType == TokenType.String)
+            {
+                gridCategoryDescription = catDescToken.String;
+            }
+            if (rootDict.TryGetValue("sliderCategoryDescription", out catDescToken) && catDescToken.TokenType == TokenType.String)
+            {
+                sliderCategoryDescription = catDescToken.String;
+            }
+            if (rootDict.TryGetValue("textCategoryDescription", out catDescToken) && catDescToken.TokenType == TokenType.String)
+            {
+                textCategoryDescription = catDescToken.String;
+            }
+
             // 質問リストの取得 ("questions", "items", "survey" のいずれかに対応)
             DataToken qListToken;
             if (rootDict.TryGetValue("questions", out qListToken) && qListToken.TokenType == TokenType.DataList)
@@ -498,13 +573,24 @@ public class SurveyManager : UdonSharpBehaviour
         int[] newChoiceCounts = new int[qCount];
         int[] newOptionOffsets = new int[qCount];
         int[] newSliderMaxValues = new int[qCount];
+        int[] newGridRowCounts = new int[qCount];
+        int[] newGridRowOffsets = new int[qCount];
+        int[] newGridColCounts = new int[qCount];
+        int[] newGridColOffsets = new int[qCount];
 
-        // 最初に全質問の選択肢の総数を計算（任意の択数に対応）
+        // 最初に全質問の選択肢・グリッド行・グリッド列の総数を計算（任意の択数・行列数に対応）
         int totalOptionsAllocated = 0;
+        int totalGridRowsAllocated = 0;
+        int totalGridColsAllocated = 0;
         for (int i = 0; i < qCount; i++)
         {
             newOptionOffsets[i] = totalOptionsAllocated;
+            newGridRowOffsets[i] = totalGridRowsAllocated;
+            newGridColOffsets[i] = totalGridColsAllocated;
+
             int countForQ = 6;
+            int rowsForQ = 4;
+            int colsForQ = 6;
             DataToken itemToken;
             if (questionsList.TryGetValue(i, out itemToken) && itemToken.TokenType == TokenType.DataDictionary)
             {
@@ -517,9 +603,32 @@ public class SurveyManager : UdonSharpBehaviour
                 {
                     int listLen = optsToken.DataList.Count;
                     if (listLen > countForQ) countForQ = listLen;
+                    if (listLen > colsForQ) colsForQ = listLen;
+                }
+
+                DataToken gRowsToken;
+                if ((qDict.TryGetValue("rows", out gRowsToken) ||
+                     qDict.TryGetValue("gridRows", out gRowsToken) ||
+                     qDict.TryGetValue("rowLabels", out gRowsToken)) && gRowsToken.TokenType == TokenType.DataList)
+                {
+                    int rLen = gRowsToken.DataList.Count;
+                    if (rLen > rowsForQ) rowsForQ = rLen;
+                }
+
+                DataToken gColsToken;
+                if ((qDict.TryGetValue("columns", out gColsToken) ||
+                     qDict.TryGetValue("cols", out gColsToken) ||
+                     qDict.TryGetValue("gridColumns", out gColsToken) ||
+                     qDict.TryGetValue("gridCols", out gColsToken) ||
+                     qDict.TryGetValue("colLabels", out gColsToken)) && gColsToken.TokenType == TokenType.DataList)
+                {
+                    int cLen = gColsToken.DataList.Count;
+                    if (cLen > colsForQ) colsForQ = cLen;
                 }
             }
             totalOptionsAllocated += countForQ;
+            totalGridRowsAllocated += rowsForQ;
+            totalGridColsAllocated += colsForQ;
         }
 
         string[] newOptionLabels = new string[totalOptionsAllocated];
@@ -528,12 +637,26 @@ public class SurveyManager : UdonSharpBehaviour
             newOptionLabels[idx] = "";
         }
 
+        string[] newGridRowLabels = new string[totalGridRowsAllocated];
+        for (int idx = 0; idx < newGridRowLabels.Length; idx++)
+        {
+            newGridRowLabels[idx] = "";
+        }
+
+        string[] newGridColLabels = new string[totalGridColsAllocated];
+        for (int idx = 0; idx < newGridColLabels.Length; idx++)
+        {
+            newGridColLabels[idx] = "";
+        }
+
         for (int i = 0; i < qCount; i++)
         {
             newQuestionTexts[i] = $"質問 {i + 1}";
             newAnswerTypes[i] = 0;
             newChoiceCounts[i] = 2;
             newSliderMaxValues[i] = 5;
+            newGridRowCounts[i] = 0;
+            newGridColCounts[i] = 0;
 
             DataToken itemToken;
             if (!questionsList.TryGetValue(i, out itemToken) || itemToken.TokenType != TokenType.DataDictionary)
@@ -582,6 +705,49 @@ public class SurveyManager : UdonSharpBehaviour
                 optsList = optsToken.DataList;
             }
 
+            // 2b. グリッド行・列リスト ("rows", "columns")
+            DataList rowsList = null;
+            DataToken rowsToken;
+            if (qDict.TryGetValue("rows", out rowsToken) && rowsToken.TokenType == TokenType.DataList)
+            {
+                rowsList = rowsToken.DataList;
+            }
+            else if (qDict.TryGetValue("gridRows", out rowsToken) && rowsToken.TokenType == TokenType.DataList)
+            {
+                rowsList = rowsToken.DataList;
+            }
+            else if (qDict.TryGetValue("rowLabels", out rowsToken) && rowsToken.TokenType == TokenType.DataList)
+            {
+                rowsList = rowsToken.DataList;
+            }
+
+            DataList colsList = null;
+            DataToken colsToken;
+            if (qDict.TryGetValue("columns", out colsToken) && colsToken.TokenType == TokenType.DataList)
+            {
+                colsList = colsToken.DataList;
+            }
+            else if (qDict.TryGetValue("cols", out colsToken) && colsToken.TokenType == TokenType.DataList)
+            {
+                colsList = colsToken.DataList;
+            }
+            else if (qDict.TryGetValue("gridColumns", out colsToken) && colsToken.TokenType == TokenType.DataList)
+            {
+                colsList = colsToken.DataList;
+            }
+            else if (qDict.TryGetValue("gridCols", out colsToken) && colsToken.TokenType == TokenType.DataList)
+            {
+                colsList = colsToken.DataList;
+            }
+            else if (qDict.TryGetValue("colLabels", out colsToken) && colsToken.TokenType == TokenType.DataList)
+            {
+                colsList = colsToken.DataList;
+            }
+            else if (optsList != null)
+            {
+                colsList = optsList;
+            }
+
             // 3. 回答形式 ("type", "answerType")
             int parsedType = -1;
             DataToken typeToken;
@@ -597,7 +763,11 @@ public class SurveyManager : UdonSharpBehaviour
             else if (typeToken.TokenType == TokenType.String)
             {
                 string ts = typeToken.String.Trim().ToLower();
-                if (ts == "0" || ts == "choice" || ts == "select" || ts == "button" || ts == "選択式" || ts == "選択")
+                if (ts == "3" || ts == "grid" || ts == "choice_grid" || ts == "multiple_choice_grid" || ts.Contains("グリッド"))
+                {
+                    parsedType = 3;
+                }
+                else if (ts == "0" || ts == "choice" || ts == "select" || ts == "button" || ts == "選択式" || ts == "選択")
                 {
                     parsedType = 0;
                 }
@@ -611,9 +781,13 @@ public class SurveyManager : UdonSharpBehaviour
                 }
             }
 
-            if (parsedType < 0 || parsedType > 2)
+            if (parsedType < 0 || parsedType > 3)
             {
-                if (optsList != null && optsList.Count > 0)
+                if (rowsList != null && rowsList.Count > 0 && colsList != null && colsList.Count > 0)
+                {
+                    parsedType = 3;
+                }
+                else if (optsList != null && optsList.Count > 0)
                 {
                     parsedType = 0;
                 }
@@ -671,6 +845,64 @@ public class SurveyManager : UdonSharpBehaviour
                 newChoiceCounts[i] = (parsedType == 0) ? 2 : 0;
             }
 
+            // 4b. 選択式（グリッド）の行・列ラベルと数の設定
+            int validGridRowCount = 0;
+            int rowBaseOffset = newGridRowOffsets[i];
+            if (rowsList != null)
+            {
+                for (int r = 0; r < rowsList.Count; r++)
+                {
+                    DataToken rItem;
+                    if (rowsList.TryGetValue(r, out rItem))
+                    {
+                        if (rItem.TokenType == TokenType.String)
+                        {
+                            newGridRowLabels[rowBaseOffset + r] = rItem.String;
+                            if (!string.IsNullOrEmpty(rItem.String)) validGridRowCount++;
+                        }
+                        else if (rItem.TokenType == TokenType.Double)
+                        {
+                            newGridRowLabels[rowBaseOffset + r] = rItem.Double.ToString();
+                            validGridRowCount++;
+                        }
+                    }
+                }
+            }
+
+            int validGridColCount = 0;
+            int colBaseOffset = newGridColOffsets[i];
+            if (colsList != null)
+            {
+                for (int c = 0; c < colsList.Count; c++)
+                {
+                    DataToken cItem;
+                    if (colsList.TryGetValue(c, out cItem))
+                    {
+                        if (cItem.TokenType == TokenType.String)
+                        {
+                            newGridColLabels[colBaseOffset + c] = cItem.String;
+                            if (!string.IsNullOrEmpty(cItem.String)) validGridColCount++;
+                        }
+                        else if (cItem.TokenType == TokenType.Double)
+                        {
+                            newGridColLabels[colBaseOffset + c] = cItem.Double.ToString();
+                            validGridColCount++;
+                        }
+                    }
+                }
+            }
+
+            if (parsedType == 3)
+            {
+                newGridRowCounts[i] = validGridRowCount > 0 ? validGridRowCount : 1;
+                newGridColCounts[i] = validGridColCount >= 2 ? validGridColCount : 2;
+            }
+            else
+            {
+                newGridRowCounts[i] = validGridRowCount;
+                newGridColCounts[i] = validGridColCount;
+            }
+
             // 5. スライダー最大評価値 ("sliderMax", "sliderMaxValue", "max", "maxValue")
             DataToken smToken;
             if (!qDict.TryGetValue("sliderMax", out smToken))
@@ -700,6 +932,12 @@ public class SurveyManager : UdonSharpBehaviour
         optionOffsets = newOptionOffsets;
         optionLabels = newOptionLabels;
         sliderMaxValues = newSliderMaxValues;
+        gridRowCounts = newGridRowCounts;
+        gridRowOffsets = newGridRowOffsets;
+        gridRowLabels = newGridRowLabels;
+        gridColCounts = newGridColCounts;
+        gridColOffsets = newGridColOffsets;
+        gridColLabels = newGridColLabels;
 
         return true;
     }
@@ -825,6 +1063,12 @@ public class SurveyManager : UdonSharpBehaviour
 
         if (surveyPanel != null)
         {
+            if (categoryDescriptionText == null)
+            {
+                Transform t = surveyPanel.transform.Find("CategoryDescriptionText");
+                if (t != null) categoryDescriptionText = t.GetComponent<Text>();
+            }
+
             if (containerConsent == null)
             {
                 Transform t = surveyPanel.transform.Find("Container_Consent");
@@ -847,6 +1091,90 @@ public class SurveyManager : UdonSharpBehaviour
                 {
                     Transform t = containerConsent.transform.Find("Btn_ConsentDisagree");
                     if (t != null) consentDisagreeButton = t.GetComponent<Button>();
+                }
+            }
+
+            if (containerGrid == null)
+            {
+                Transform t = surveyPanel.transform.Find("Container_Grid");
+                if (t != null) containerGrid = t.gameObject;
+            }
+
+            if (containerGrid != null)
+            {
+                if (gridCornerHeaderText == null)
+                {
+                    Transform t = containerGrid.transform.Find("GridHeaderBar/CornerHeaderText");
+                    if (t != null) gridCornerHeaderText = t.GetComponent<Text>();
+                }
+                if (gridColHeaderTexts == null || gridColHeaderTexts.Length == 0)
+                {
+                    Transform hb = containerGrid.transform.Find("GridHeaderBar");
+                    if (hb != null)
+                    {
+                        gridColHeaderTexts = new Text[10];
+                        for (int c = 0; c < 10; c++)
+                        {
+                            Transform ct = hb.Find($"ColHeader{c}");
+                            if (ct != null) gridColHeaderTexts[c] = ct.GetComponent<Text>();
+                        }
+                    }
+                }
+                if (gridScrollRect == null)
+                {
+                    Transform sv = containerGrid.transform.Find("GridScrollView");
+                    if (sv != null) gridScrollRect = sv.GetComponent<ScrollRect>();
+                }
+                if (gridScrollContent == null)
+                {
+                    Transform cnt = containerGrid.transform.Find("GridScrollView/Viewport/Content");
+                    if (cnt != null) gridScrollContent = cnt.GetComponent<RectTransform>();
+                }
+                if (gridScrollContent != null)
+                {
+                    if (gridRowObjects == null || gridRowObjects.Length == 0)
+                    {
+                        gridRowObjects = new GameObject[20];
+                        gridRowBgImages = new Image[20];
+                        gridRowLabelTexts = new Text[20];
+                        for (int r = 0; r < 20; r++)
+                        {
+                            Transform rt = gridScrollContent.Find($"GridRow{r}");
+                            if (rt != null)
+                            {
+                                gridRowObjects[r] = rt.gameObject;
+                                gridRowBgImages[r] = rt.GetComponent<Image>();
+                                Transform lt = rt.Find("RowLabel");
+                                if (lt != null) gridRowLabelTexts[r] = lt.GetComponent<Text>();
+                            }
+                        }
+                    }
+                    if (gridCellButtons == null || gridCellButtons.Length == 0)
+                    {
+                        gridCellButtons = new GameObject[120];
+                        gridCellButtonImages = new Image[120];
+                        gridCellButtonTexts = new Text[120];
+                        for (int k = 0; k < 120; k++)
+                        {
+                            Transform bt = gridScrollContent.Find($"Btn_GridCell{k}");
+                            if (bt != null)
+                            {
+                                gridCellButtons[k] = bt.gameObject;
+                                gridCellButtonImages[k] = bt.GetComponent<Image>();
+                                gridCellButtonTexts[k] = bt.GetComponentInChildren<Text>();
+                            }
+                        }
+                    }
+                }
+                if (gridSubmitButton == null)
+                {
+                    Transform sb = containerGrid.transform.Find("Btn_SubmitGrid");
+                    if (sb != null)
+                    {
+                        gridSubmitButton = sb.GetComponent<Button>();
+                        gridSubmitButtonImage = sb.GetComponent<Image>();
+                        gridSubmitButtonText = sb.GetComponentInChildren<Text>();
+                    }
                 }
             }
         }
@@ -2740,6 +3068,7 @@ public class SurveyManager : UdonSharpBehaviour
             if (containerChoice != null) containerChoice.SetActive(false);
             if (containerRating != null) containerRating.SetActive(false);
             if (containerTextInput != null) containerTextInput.SetActive(false);
+            if (containerGrid != null) containerGrid.SetActive(false);
 
             if (containerConsent != null)
             {
@@ -2752,10 +3081,28 @@ public class SurveyManager : UdonSharpBehaviour
 
             if (titleText != null)
             {
+                RectTransform tRt = titleText.GetComponent<RectTransform>();
+                if (tRt != null)
+                {
+                    tRt.anchoredPosition = new Vector2(0f, 220f);
+                    tRt.sizeDelta = new Vector2(900f, 60f);
+                }
+                titleText.fontSize = 36;
                 titleText.text = !string.IsNullOrEmpty(consentTitleText) ? consentTitleText : "アンケート参加の同意確認";
+            }
+            if (categoryDescriptionText != null)
+            {
+                categoryDescriptionText.gameObject.SetActive(false);
             }
             if (questionText != null)
             {
+                RectTransform qRt = questionText.GetComponent<RectTransform>();
+                if (qRt != null)
+                {
+                    qRt.anchoredPosition = new Vector2(0f, 130f);
+                    qRt.sizeDelta = new Vector2(900f, 100f);
+                }
+                questionText.fontSize = 32;
                 questionText.text = "以下の項目をご確認の上、同意ボタンを選択してください。";
             }
         }
@@ -2783,7 +3130,7 @@ public class SurveyManager : UdonSharpBehaviour
     }
 
     /// <summary>
-    /// 出題順配列 questionOrder を構築する（選択式 -> スライダー評価 -> 自由記述 の順、各項目内でランダム並び替え設定を反映）
+    /// 出題順配列 questionOrder を構築する（選択式 -> 選択式（グリッド） -> スライダー評価 -> 自由記述 の順、各項目内でランダム並び替え設定を反映）
     /// </summary>
     private void BuildQuestionOrder()
     {
@@ -2793,6 +3140,8 @@ public class SurveyManager : UdonSharpBehaviour
 
         int[] choiceIndices = new int[qCount];
         int choiceLen = 0;
+        int[] gridIndices = new int[qCount];
+        int gridLen = 0;
         int[] sliderIndices = new int[qCount];
         int sliderLen = 0;
         int[] textIndices = new int[qCount];
@@ -2805,6 +3154,11 @@ public class SurveyManager : UdonSharpBehaviour
             {
                 choiceIndices[choiceLen] = i;
                 choiceLen++;
+            }
+            else if (t == 3)
+            {
+                gridIndices[gridLen] = i;
+                gridLen++;
             }
             else if (t == 1)
             {
@@ -2828,6 +3182,17 @@ public class SurveyManager : UdonSharpBehaviour
                     int tmp = choiceIndices[i];
                     choiceIndices[i] = choiceIndices[r];
                     choiceIndices[r] = tmp;
+                }
+            }
+
+            if (gridLen > 1)
+            {
+                for (int i = gridLen - 1; i > 0; i--)
+                {
+                    int r = Random.Range(0, i + 1);
+                    int tmp = gridIndices[i];
+                    gridIndices[i] = gridIndices[r];
+                    gridIndices[r] = tmp;
                 }
             }
 
@@ -2858,6 +3223,11 @@ public class SurveyManager : UdonSharpBehaviour
         for (int i = 0; i < choiceLen; i++)
         {
             questionOrder[pos] = choiceIndices[i];
+            pos++;
+        }
+        for (int i = 0; i < gridLen; i++)
+        {
+            questionOrder[pos] = gridIndices[i];
             pos++;
         }
         for (int i = 0; i < sliderLen; i++)
@@ -3012,6 +3382,365 @@ public class SurveyManager : UdonSharpBehaviour
         }
     }
 
+    public string GetGridRowLabel(int questionIndex, int rowIndex)
+    {
+        if (gridRowLabels != null && gridRowLabels.Length > 0)
+        {
+            int baseIdx = (gridRowOffsets != null && questionIndex >= 0 && questionIndex < gridRowOffsets.Length)
+                ? gridRowOffsets[questionIndex]
+                : 0;
+            int labelIdx = baseIdx + rowIndex;
+            if (labelIdx >= 0 && labelIdx < gridRowLabels.Length && !string.IsNullOrEmpty(gridRowLabels[labelIdx]))
+            {
+                return gridRowLabels[labelIdx];
+            }
+        }
+        return $"項目 {rowIndex + 1}";
+    }
+
+    public string GetGridColLabel(int questionIndex, int colIndex)
+    {
+        if (gridColLabels != null && gridColLabels.Length > 0)
+        {
+            int baseIdx = (gridColOffsets != null && questionIndex >= 0 && questionIndex < gridColOffsets.Length)
+                ? gridColOffsets[questionIndex]
+                : 0;
+            int labelIdx = baseIdx + colIndex;
+            if (labelIdx >= 0 && labelIdx < gridColLabels.Length && !string.IsNullOrEmpty(gridColLabels[labelIdx]))
+            {
+                return gridColLabels[labelIdx];
+            }
+        }
+        return $"選択肢 {colIndex + 1}";
+    }
+
+    private void LayoutGridMatrix(int actualQuestionIndex, int rowCount, int colCount)
+    {
+        if (containerGrid == null) return;
+
+        int maxCols = (gridColHeaderTexts != null && gridColHeaderTexts.Length > 0) ? gridColHeaderTexts.Length : 10;
+        int maxRows = (gridRowObjects != null && gridRowObjects.Length > 0) ? gridRowObjects.Length : 20;
+        int maxCells = (gridCellButtons != null && gridCellButtons.Length > 0) ? gridCellButtons.Length : 120;
+
+        if (colCount < 2) colCount = 2;
+        if (colCount > maxCols) colCount = maxCols;
+        if (rowCount < 1) rowCount = 1;
+        if (rowCount > maxRows) rowCount = maxRows;
+        if (rowCount * colCount > maxCells)
+        {
+            rowCount = maxCells / colCount;
+            if (rowCount < 1) rowCount = 1;
+        }
+
+        currentGridRowCount = rowCount;
+        currentGridColCount = colCount;
+
+        float usableW = 880f;
+        float leftEdgeX = -450f;
+        float rowLabelW = 300f;
+        if (colCount <= 3) rowLabelW = 340f;
+        else if (colCount == 4) rowLabelW = 320f;
+        else if (colCount == 5) rowLabelW = 305f;
+        else rowLabelW = 240f;
+
+        float colsAreaW = usableW - rowLabelW - 12f;
+        float colSlotW = colsAreaW / colCount;
+
+        if (gridCornerHeaderText != null)
+        {
+            RectTransform cornerRt = gridCornerHeaderText.GetComponent<RectTransform>();
+            if (cornerRt != null)
+            {
+                cornerRt.anchoredPosition = new Vector2(leftEdgeX + 10f + (rowLabelW - 14f) * 0.5f, 0f);
+                cornerRt.sizeDelta = new Vector2(rowLabelW - 14f, 42f);
+            }
+        }
+
+        int headerFontSize = 19;
+        if (colCount >= 6) headerFontSize = 16;
+        else if (colCount == 5) headerFontSize = 18;
+
+        if (gridColHeaderTexts != null)
+        {
+            for (int c = 0; c < gridColHeaderTexts.Length; c++)
+            {
+                if (gridColHeaderTexts[c] != null)
+                {
+                    if (c < colCount)
+                    {
+                        gridColHeaderTexts[c].gameObject.SetActive(true);
+                        gridColHeaderTexts[c].text = GetGridColLabel(actualQuestionIndex, c);
+                        gridColHeaderTexts[c].fontSize = headerFontSize;
+                        RectTransform hRt = gridColHeaderTexts[c].GetComponent<RectTransform>();
+                        if (hRt != null)
+                        {
+                            float cx = leftEdgeX + rowLabelW + 12f + colSlotW * (c + 0.5f);
+                            hRt.anchoredPosition = new Vector2(cx, 0f);
+                            hRt.sizeDelta = new Vector2(colSlotW - 6f, 44f);
+                        }
+                    }
+                    else
+                    {
+                        gridColHeaderTexts[c].gameObject.SetActive(false);
+                    }
+                }
+            }
+        }
+
+        float rowH = 56f;
+        float rowGap = 5f;
+        if (rowCount == 1) { rowH = 76f; rowGap = 8f; }
+        else if (rowCount == 2) { rowH = 72f; rowGap = 8f; }
+        else if (rowCount == 3) { rowH = 68f; rowGap = 8f; }
+        else if (rowCount == 4) { rowH = 62f; rowGap = 6f; }
+
+        int rowFontSize = (rowCount <= 4) ? 20 : 18;
+        float topPad = 4f;
+        float totalContentH = topPad * 2f + rowCount * rowH + (rowCount - 1) * rowGap;
+        if (totalContentH < 284f) totalContentH = 284f;
+
+        if (gridScrollContent != null)
+        {
+            gridScrollContent.sizeDelta = new Vector2(900f, totalContentH);
+            gridScrollContent.anchoredPosition = Vector2.zero;
+        }
+        if (gridScrollRect != null)
+        {
+            gridScrollRect.verticalNormalizedPosition = 1f;
+        }
+
+        if (gridRowObjects != null)
+        {
+            for (int r = 0; r < gridRowObjects.Length; r++)
+            {
+                if (gridRowObjects[r] != null)
+                {
+                    if (r < rowCount)
+                    {
+                        gridRowObjects[r].SetActive(true);
+                        float ry = -topPad - r * (rowH + rowGap) - rowH * 0.5f;
+                        RectTransform rRt = gridRowObjects[r].GetComponent<RectTransform>();
+                        if (rRt != null)
+                        {
+                            rRt.anchorMin = new Vector2(0.5f, 1f);
+                            rRt.anchorMax = new Vector2(0.5f, 1f);
+                            rRt.pivot = new Vector2(0.5f, 0.5f);
+                            rRt.anchoredPosition = new Vector2(-10f, ry);
+                            rRt.sizeDelta = new Vector2(usableW, rowH);
+                        }
+
+                        if (gridRowLabelTexts != null && r < gridRowLabelTexts.Length && gridRowLabelTexts[r] != null)
+                        {
+                            gridRowLabelTexts[r].text = GetGridRowLabel(actualQuestionIndex, r);
+                            gridRowLabelTexts[r].fontSize = rowFontSize;
+                            RectTransform lRt = gridRowLabelTexts[r].GetComponent<RectTransform>();
+                            if (lRt != null)
+                            {
+                                lRt.anchorMin = new Vector2(0f, 0.5f);
+                                lRt.anchorMax = new Vector2(0f, 0.5f);
+                                lRt.pivot = new Vector2(0f, 0.5f);
+                                lRt.anchoredPosition = new Vector2(12f, 0f);
+                                lRt.sizeDelta = new Vector2(rowLabelW - 16f, rowH - 6f);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        gridRowObjects[r].SetActive(false);
+                    }
+                }
+            }
+        }
+
+        float btnW = colSlotW - 12f;
+        if (btnW > 96f) btnW = 96f;
+        if (btnW < 36f) btnW = 36f;
+        float btnH = rowH - 12f;
+        if (btnH > 50f) btnH = 50f;
+        if (btnH < 34f) btnH = 34f;
+
+        int activeCells = rowCount * colCount;
+        if (gridCellButtons != null)
+        {
+            for (int k = 0; k < gridCellButtons.Length; k++)
+            {
+                if (gridCellButtons[k] != null)
+                {
+                    if (k < activeCells)
+                    {
+                        gridCellButtons[k].SetActive(true);
+                        int r = k / colCount;
+                        int c = k % colCount;
+                        float cx = leftEdgeX + rowLabelW + 12f + colSlotW * (c + 0.5f);
+                        float ry = -topPad - r * (rowH + rowGap) - rowH * 0.5f;
+
+                        RectTransform bRt = gridCellButtons[k].GetComponent<RectTransform>();
+                        if (bRt != null)
+                        {
+                            bRt.anchorMin = new Vector2(0.5f, 1f);
+                            bRt.anchorMax = new Vector2(0.5f, 1f);
+                            bRt.pivot = new Vector2(0.5f, 0.5f);
+                            bRt.anchoredPosition = new Vector2(cx, ry);
+                            bRt.sizeDelta = new Vector2(btnW, btnH);
+                        }
+                    }
+                    else
+                    {
+                        gridCellButtons[k].SetActive(false);
+                    }
+                }
+            }
+        }
+    }
+
+    private int GetRequiredGridSelectionCount()
+    {
+        if (currentGridRowCount <= 0 || currentGridColCount <= 0) return 0;
+        return (currentGridRowCount <= currentGridColCount) ? currentGridRowCount : currentGridColCount;
+    }
+
+    private bool IsGridColumnSelectedInOtherRow(int col, int excludeRow)
+    {
+        if (currentGridRowSelections == null) return false;
+        for (int r = 0; r < currentGridRowCount && r < currentGridRowSelections.Length; r++)
+        {
+            if (r != excludeRow && currentGridRowSelections[r] == col)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private bool HasDuplicateGridColumns()
+    {
+        if (currentGridRowSelections == null) return false;
+        for (int r1 = 0; r1 < currentGridRowCount && r1 < currentGridRowSelections.Length; r1++)
+        {
+            int c1 = currentGridRowSelections[r1];
+            if (c1 < 0) continue;
+            for (int r2 = r1 + 1; r2 < currentGridRowCount && r2 < currentGridRowSelections.Length; r2++)
+            {
+                if (currentGridRowSelections[r2] == c1)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void RefreshGridVisualState()
+    {
+        int answeredRows = 0;
+
+        if (gridColHeaderTexts != null)
+        {
+            for (int c = 0; c < currentGridColCount && c < gridColHeaderTexts.Length; c++)
+            {
+                if (gridColHeaderTexts[c] != null)
+                {
+                    bool colUsed = IsGridColumnSelectedInOtherRow(c, -1);
+                    gridColHeaderTexts[c].color = colUsed
+                        ? new Color(0.48f, 0.95f, 0.68f, 1f)
+                        : new Color(0.92f, 0.96f, 1f, 1f);
+                }
+            }
+        }
+
+        for (int r = 0; r < currentGridRowCount; r++)
+        {
+            int selCol = (currentGridRowSelections != null && r < currentGridRowSelections.Length)
+                ? currentGridRowSelections[r]
+                : -1;
+            if (selCol >= 0) answeredRows++;
+
+            if (gridRowBgImages != null && r < gridRowBgImages.Length && gridRowBgImages[r] != null)
+            {
+                if (selCol >= 0)
+                {
+                    gridRowBgImages[r].color = new Color(0.14f, 0.34f, 0.25f, 0.55f);
+                }
+                else
+                {
+                    gridRowBgImages[r].color = (r % 2 == 0)
+                        ? new Color(1f, 1f, 1f, 0.05f)
+                        : new Color(1f, 1f, 1f, 0.10f);
+                }
+            }
+
+            for (int c = 0; c < currentGridColCount; c++)
+            {
+                int cellIdx = r * currentGridColCount + c;
+                bool isSelected = (selCol == c);
+                bool usedInOtherRow = !isSelected && IsGridColumnSelectedInOtherRow(c, r);
+
+                if (gridCellButtonImages != null && cellIdx < gridCellButtonImages.Length && gridCellButtonImages[cellIdx] != null)
+                {
+                    if (isSelected)
+                    {
+                        gridCellButtonImages[cellIdx].color = new Color(0.18f, 0.75f, 0.42f, 1f);
+                    }
+                    else if (usedInOtherRow)
+                    {
+                        gridCellButtonImages[cellIdx].color = new Color(0.15f, 0.17f, 0.23f, 0.78f);
+                    }
+                    else
+                    {
+                        gridCellButtonImages[cellIdx].color = new Color(0.22f, 0.25f, 0.34f, 1f);
+                    }
+                }
+                if (gridCellButtonTexts != null && cellIdx < gridCellButtonTexts.Length && gridCellButtonTexts[cellIdx] != null)
+                {
+                    gridCellButtonTexts[cellIdx].text = isSelected ? "●" : "○";
+                    if (isSelected)
+                    {
+                        gridCellButtonTexts[cellIdx].color = Color.white;
+                    }
+                    else if (usedInOtherRow)
+                    {
+                        gridCellButtonTexts[cellIdx].color = new Color(0.45f, 0.48f, 0.55f, 0.78f);
+                    }
+                    else
+                    {
+                        gridCellButtonTexts[cellIdx].color = new Color(0.78f, 0.82f, 0.88f, 1f);
+                    }
+                }
+            }
+        }
+
+        int requiredRows = GetRequiredGridSelectionCount();
+        bool allAnswered = (requiredRows > 0 && answeredRows >= requiredRows && !HasDuplicateGridColumns());
+        if (gridSubmitButton != null)
+        {
+            gridSubmitButton.interactable = allAnswered;
+        }
+        if (gridSubmitButtonImage != null)
+        {
+            gridSubmitButtonImage.color = allAnswered
+                ? new Color(0.2f, 0.75f, 0.35f, 1f)
+                : new Color(0.32f, 0.34f, 0.40f, 1f);
+        }
+        if (gridSubmitButtonText != null)
+        {
+            gridSubmitButtonText.text = allAnswered
+                ? "決定"
+                : $"各行・各列1つずつ選択してください ({answeredRows} / {requiredRows})";
+            gridSubmitButtonText.color = allAnswered
+                ? Color.white
+                : new Color(0.78f, 0.78f, 0.78f, 1f);
+        }
+    }
+
+    public string GetCategoryDescriptionForType(int type)
+    {
+        if (type == 0) return choiceCategoryDescription != null ? choiceCategoryDescription : "";
+        if (type == 3) return gridCategoryDescription != null ? gridCategoryDescription : "";
+        if (type == 1) return sliderCategoryDescription != null ? sliderCategoryDescription : "";
+        if (type == 2) return textCategoryDescription != null ? textCategoryDescription : "";
+        return "";
+    }
+
     public void ShowQuestion(int index)
     {
         if (index < 0 || index >= questionTexts.Length) return;
@@ -3021,20 +3750,131 @@ public class SurveyManager : UdonSharpBehaviour
 
         if (containerConsent != null) containerConsent.SetActive(false);
 
+        int type = (answerTypes != null && actualIndex < answerTypes.Length) ? answerTypes[actualIndex] : 0;
+        string catDesc = GetCategoryDescriptionForType(type);
+        bool hasCatDesc = !string.IsNullOrEmpty(catDesc);
+
+        if (categoryDescriptionText == null && surveyPanel != null)
+        {
+            Transform cdTr = surveyPanel.transform.Find("CategoryDescriptionText");
+            if (cdTr != null) categoryDescriptionText = cdTr.GetComponent<Text>();
+        }
+
         if (titleText != null)
         {
+            RectTransform tRt = titleText.GetComponent<RectTransform>();
+            if (tRt != null)
+            {
+                if (hasCatDesc)
+                {
+                    tRt.anchoredPosition = new Vector2(0f, 250f);
+                    tRt.sizeDelta = new Vector2(900f, 44f);
+                }
+                else
+                {
+                    tRt.anchoredPosition = new Vector2(0f, 224f);
+                    tRt.sizeDelta = new Vector2(900f, 56f);
+                }
+            }
+            titleText.fontSize = hasCatDesc ? 31 : 36;
             titleText.text = $"質問 ({index + 1} / {questionTexts.Length})";
         }
+
+        if (categoryDescriptionText != null)
+        {
+            if (hasCatDesc)
+            {
+                categoryDescriptionText.gameObject.SetActive(true);
+                categoryDescriptionText.text = catDesc;
+                RectTransform dRt = categoryDescriptionText.GetComponent<RectTransform>();
+                if (dRt != null)
+                {
+                    if (type == 3)
+                    {
+                        dRt.anchoredPosition = new Vector2(0f, 204f);
+                        dRt.sizeDelta = new Vector2(900f, 44f);
+                        categoryDescriptionText.fontSize = 19;
+                    }
+                    else
+                    {
+                        dRt.anchoredPosition = new Vector2(0f, 196f);
+                        dRt.sizeDelta = new Vector2(900f, 56f);
+                        categoryDescriptionText.fontSize = 21;
+                    }
+                }
+            }
+            else
+            {
+                categoryDescriptionText.gameObject.SetActive(false);
+            }
+        }
+
         if (questionText != null)
         {
-            questionText.text = questionTexts[actualIndex];
+            RectTransform qRt = questionText.GetComponent<RectTransform>();
+            if (hasCatDesc && categoryDescriptionText == null)
+            {
+                // UI再生成前でも説明文がそのまま表示されるリッチテキストフォールバック
+                questionText.supportRichText = true;
+                if (qRt != null)
+                {
+                    if (type == 3)
+                    {
+                        qRt.anchoredPosition = new Vector2(0f, 174f);
+                        qRt.sizeDelta = new Vector2(900f, 96f);
+                    }
+                    else
+                    {
+                        qRt.anchoredPosition = new Vector2(0f, 155f);
+                        qRt.sizeDelta = new Vector2(900f, 132f);
+                    }
+                }
+                int descSize = (type == 3) ? 18 : 21;
+                questionText.fontSize = (type == 3) ? 25 : 30;
+                questionText.text = $"<size={descSize}><color=#A8D4FF>{catDesc}</color></size>\n{questionTexts[actualIndex]}";
+            }
+            else if (hasCatDesc)
+            {
+                if (qRt != null)
+                {
+                    if (type == 3)
+                    {
+                        qRt.anchoredPosition = new Vector2(0f, 150f);
+                        qRt.sizeDelta = new Vector2(900f, 56f);
+                    }
+                    else
+                    {
+                        qRt.anchoredPosition = new Vector2(0f, 126f);
+                        qRt.sizeDelta = new Vector2(900f, 80f);
+                    }
+                }
+                questionText.fontSize = (type == 3) ? 25 : 30;
+                questionText.text = questionTexts[actualIndex];
+            }
+            else
+            {
+                if (qRt != null)
+                {
+                    if (type == 3)
+                    {
+                        qRt.anchoredPosition = new Vector2(0f, 162f);
+                        qRt.sizeDelta = new Vector2(900f, 68f);
+                    }
+                    else
+                    {
+                        qRt.anchoredPosition = new Vector2(0f, 130f);
+                        qRt.sizeDelta = new Vector2(900f, 100f);
+                    }
+                }
+                questionText.fontSize = (type == 3) ? 28 : 32;
+                questionText.text = questionTexts[actualIndex];
+            }
         }
 
         if (containerChoice != null) containerChoice.SetActive(false);
         if (containerRating != null) containerRating.SetActive(false);
         if (containerTextInput != null) containerTextInput.SetActive(false);
-
-        int type = (answerTypes != null && actualIndex < answerTypes.Length) ? answerTypes[actualIndex] : 0;
+        if (containerGrid != null) containerGrid.SetActive(false);
 
         switch (type)
         {
@@ -3088,6 +3928,42 @@ public class SurveyManager : UdonSharpBehaviour
                     inputFieldArea.text = "";
                 }
                 break;
+
+            case 3: // 選択式（グリッド）
+                if (containerGrid == null)
+                {
+                    EnsureUIReferences();
+                }
+                if (containerGrid != null)
+                {
+                    containerGrid.SetActive(true);
+                    int rCount = (gridRowCounts != null && actualIndex < gridRowCounts.Length) ? gridRowCounts[actualIndex] : 2;
+                    int cCount = (gridColCounts != null && actualIndex < gridColCounts.Length) ? gridColCounts[actualIndex] : 3;
+                    if (rCount < 1) rCount = 1;
+                    if (cCount < 2) cCount = 2;
+
+                    if (currentGridRowSelections == null || currentGridRowSelections.Length < 20)
+                    {
+                        currentGridRowSelections = new int[20];
+                    }
+                    for (int r = 0; r < currentGridRowSelections.Length; r++)
+                    {
+                        currentGridRowSelections[r] = -1;
+                    }
+
+                    LayoutGridMatrix(actualIndex, rCount, cCount);
+                    if (currentGridRowCount > currentGridColCount)
+                    {
+                        Debug.LogWarning($"[SurveyManager] 選択式（グリッド）Q{actualIndex + 1}: 行数({currentGridRowCount})が列数({currentGridColCount})を超えています。1列につき1回答のため、最大{currentGridColCount}行の選択で決定可能になります。");
+                    }
+                    RefreshGridVisualState();
+                    DisablePhysicalCollisions();
+                }
+                else
+                {
+                    Debug.LogError("[SurveyManager] Container_Grid が見つかりません。UnityエディタのSurveyManagerインスペクターで「★ UIを自動生成・一括セットアップ」を実行してください。");
+                }
+                break;
         }
     }
 
@@ -3127,6 +4003,210 @@ public class SurveyManager : UdonSharpBehaviour
     public void OnChoiceOption21() { SelectAnswer(21); }
     public void OnChoiceOption22() { SelectAnswer(22); }
     public void OnChoiceOption23() { SelectAnswer(23); }
+
+    public void SelectGridCell(int cellIndex)
+    {
+        if (currentGridColCount <= 0 || currentGridRowCount <= 0) return;
+
+        int row = cellIndex / currentGridColCount;
+        int col = cellIndex % currentGridColCount;
+        if (row < 0 || row >= currentGridRowCount || col < 0 || col >= currentGridColCount) return;
+
+        if (currentGridRowSelections == null || currentGridRowSelections.Length <= row)
+        {
+            int[] expanded = new int[20];
+            for (int i = 0; i < expanded.Length; i++) expanded[i] = -1;
+            if (currentGridRowSelections != null)
+            {
+                for (int i = 0; i < currentGridRowSelections.Length && i < expanded.Length; i++)
+                {
+                    expanded[i] = currentGridRowSelections[i];
+                }
+            }
+            currentGridRowSelections = expanded;
+        }
+
+        // Googleフォーム「1列につき1つの回答に制限する」方式:
+        // 他の行ですでに同じ列が選ばれていた場合、前の行の選択を自動解除して今押した行へ移す
+        for (int r = 0; r < currentGridRowCount && r < currentGridRowSelections.Length; r++)
+        {
+            if (r != row && currentGridRowSelections[r] == col)
+            {
+                currentGridRowSelections[r] = -1;
+            }
+        }
+
+        currentGridRowSelections[row] = col;
+        RefreshGridVisualState();
+    }
+
+    private string SanitizeLogSegment(string str)
+    {
+        if (string.IsNullOrEmpty(str)) return "";
+        return str.Replace("|", "｜").Replace(":", "：").Replace("\r", " ").Replace("\n", " ").Trim();
+    }
+
+    public void OnSubmitGrid()
+    {
+        if (currentGridRowCount <= 0 || currentGridColCount <= 0) return;
+        if (currentGridRowSelections == null) return;
+        if (HasDuplicateGridColumns()) return;
+
+        int answeredRows = 0;
+        for (int r = 0; r < currentGridRowCount && r < currentGridRowSelections.Length; r++)
+        {
+            if (currentGridRowSelections[r] >= 0)
+            {
+                answeredRows++;
+            }
+        }
+
+        int requiredRows = GetRequiredGridSelectionCount();
+        if (answeredRows < requiredRows) return;
+
+        int actualIndex = GetActualQuestionIndex(currentIndex);
+        string combined = "";
+        for (int r = 0; r < currentGridRowCount; r++)
+        {
+            string rLabel = SanitizeLogSegment(GetGridRowLabel(actualIndex, r));
+            int selCol = (r < currentGridRowSelections.Length) ? currentGridRowSelections[r] : -1;
+            string cLabel = (selCol >= 0) ? SanitizeLogSegment(GetGridColLabel(actualIndex, selCol)) : "未選択";
+            if (r > 0) combined += " / ";
+            combined += $"{rLabel}={cLabel}";
+        }
+
+        if (userTextAnswers != null && actualIndex >= 0 && actualIndex < userTextAnswers.Length)
+        {
+            userTextAnswers[actualIndex] = combined;
+        }
+        if (userAnswers != null && actualIndex >= 0 && actualIndex < userAnswers.Length)
+        {
+            userAnswers[actualIndex] = answeredRows;
+        }
+
+        NextQuestion();
+    }
+
+    public void OnGridCell0() { SelectGridCell(0); }
+    public void OnGridCell1() { SelectGridCell(1); }
+    public void OnGridCell2() { SelectGridCell(2); }
+    public void OnGridCell3() { SelectGridCell(3); }
+    public void OnGridCell4() { SelectGridCell(4); }
+    public void OnGridCell5() { SelectGridCell(5); }
+    public void OnGridCell6() { SelectGridCell(6); }
+    public void OnGridCell7() { SelectGridCell(7); }
+    public void OnGridCell8() { SelectGridCell(8); }
+    public void OnGridCell9() { SelectGridCell(9); }
+    public void OnGridCell10() { SelectGridCell(10); }
+    public void OnGridCell11() { SelectGridCell(11); }
+    public void OnGridCell12() { SelectGridCell(12); }
+    public void OnGridCell13() { SelectGridCell(13); }
+    public void OnGridCell14() { SelectGridCell(14); }
+    public void OnGridCell15() { SelectGridCell(15); }
+    public void OnGridCell16() { SelectGridCell(16); }
+    public void OnGridCell17() { SelectGridCell(17); }
+    public void OnGridCell18() { SelectGridCell(18); }
+    public void OnGridCell19() { SelectGridCell(19); }
+    public void OnGridCell20() { SelectGridCell(20); }
+    public void OnGridCell21() { SelectGridCell(21); }
+    public void OnGridCell22() { SelectGridCell(22); }
+    public void OnGridCell23() { SelectGridCell(23); }
+    public void OnGridCell24() { SelectGridCell(24); }
+    public void OnGridCell25() { SelectGridCell(25); }
+    public void OnGridCell26() { SelectGridCell(26); }
+    public void OnGridCell27() { SelectGridCell(27); }
+    public void OnGridCell28() { SelectGridCell(28); }
+    public void OnGridCell29() { SelectGridCell(29); }
+    public void OnGridCell30() { SelectGridCell(30); }
+    public void OnGridCell31() { SelectGridCell(31); }
+    public void OnGridCell32() { SelectGridCell(32); }
+    public void OnGridCell33() { SelectGridCell(33); }
+    public void OnGridCell34() { SelectGridCell(34); }
+    public void OnGridCell35() { SelectGridCell(35); }
+    public void OnGridCell36() { SelectGridCell(36); }
+    public void OnGridCell37() { SelectGridCell(37); }
+    public void OnGridCell38() { SelectGridCell(38); }
+    public void OnGridCell39() { SelectGridCell(39); }
+    public void OnGridCell40() { SelectGridCell(40); }
+    public void OnGridCell41() { SelectGridCell(41); }
+    public void OnGridCell42() { SelectGridCell(42); }
+    public void OnGridCell43() { SelectGridCell(43); }
+    public void OnGridCell44() { SelectGridCell(44); }
+    public void OnGridCell45() { SelectGridCell(45); }
+    public void OnGridCell46() { SelectGridCell(46); }
+    public void OnGridCell47() { SelectGridCell(47); }
+    public void OnGridCell48() { SelectGridCell(48); }
+    public void OnGridCell49() { SelectGridCell(49); }
+    public void OnGridCell50() { SelectGridCell(50); }
+    public void OnGridCell51() { SelectGridCell(51); }
+    public void OnGridCell52() { SelectGridCell(52); }
+    public void OnGridCell53() { SelectGridCell(53); }
+    public void OnGridCell54() { SelectGridCell(54); }
+    public void OnGridCell55() { SelectGridCell(55); }
+    public void OnGridCell56() { SelectGridCell(56); }
+    public void OnGridCell57() { SelectGridCell(57); }
+    public void OnGridCell58() { SelectGridCell(58); }
+    public void OnGridCell59() { SelectGridCell(59); }
+    public void OnGridCell60() { SelectGridCell(60); }
+    public void OnGridCell61() { SelectGridCell(61); }
+    public void OnGridCell62() { SelectGridCell(62); }
+    public void OnGridCell63() { SelectGridCell(63); }
+    public void OnGridCell64() { SelectGridCell(64); }
+    public void OnGridCell65() { SelectGridCell(65); }
+    public void OnGridCell66() { SelectGridCell(66); }
+    public void OnGridCell67() { SelectGridCell(67); }
+    public void OnGridCell68() { SelectGridCell(68); }
+    public void OnGridCell69() { SelectGridCell(69); }
+    public void OnGridCell70() { SelectGridCell(70); }
+    public void OnGridCell71() { SelectGridCell(71); }
+    public void OnGridCell72() { SelectGridCell(72); }
+    public void OnGridCell73() { SelectGridCell(73); }
+    public void OnGridCell74() { SelectGridCell(74); }
+    public void OnGridCell75() { SelectGridCell(75); }
+    public void OnGridCell76() { SelectGridCell(76); }
+    public void OnGridCell77() { SelectGridCell(77); }
+    public void OnGridCell78() { SelectGridCell(78); }
+    public void OnGridCell79() { SelectGridCell(79); }
+    public void OnGridCell80() { SelectGridCell(80); }
+    public void OnGridCell81() { SelectGridCell(81); }
+    public void OnGridCell82() { SelectGridCell(82); }
+    public void OnGridCell83() { SelectGridCell(83); }
+    public void OnGridCell84() { SelectGridCell(84); }
+    public void OnGridCell85() { SelectGridCell(85); }
+    public void OnGridCell86() { SelectGridCell(86); }
+    public void OnGridCell87() { SelectGridCell(87); }
+    public void OnGridCell88() { SelectGridCell(88); }
+    public void OnGridCell89() { SelectGridCell(89); }
+    public void OnGridCell90() { SelectGridCell(90); }
+    public void OnGridCell91() { SelectGridCell(91); }
+    public void OnGridCell92() { SelectGridCell(92); }
+    public void OnGridCell93() { SelectGridCell(93); }
+    public void OnGridCell94() { SelectGridCell(94); }
+    public void OnGridCell95() { SelectGridCell(95); }
+    public void OnGridCell96() { SelectGridCell(96); }
+    public void OnGridCell97() { SelectGridCell(97); }
+    public void OnGridCell98() { SelectGridCell(98); }
+    public void OnGridCell99() { SelectGridCell(99); }
+    public void OnGridCell100() { SelectGridCell(100); }
+    public void OnGridCell101() { SelectGridCell(101); }
+    public void OnGridCell102() { SelectGridCell(102); }
+    public void OnGridCell103() { SelectGridCell(103); }
+    public void OnGridCell104() { SelectGridCell(104); }
+    public void OnGridCell105() { SelectGridCell(105); }
+    public void OnGridCell106() { SelectGridCell(106); }
+    public void OnGridCell107() { SelectGridCell(107); }
+    public void OnGridCell108() { SelectGridCell(108); }
+    public void OnGridCell109() { SelectGridCell(109); }
+    public void OnGridCell110() { SelectGridCell(110); }
+    public void OnGridCell111() { SelectGridCell(111); }
+    public void OnGridCell112() { SelectGridCell(112); }
+    public void OnGridCell113() { SelectGridCell(113); }
+    public void OnGridCell114() { SelectGridCell(114); }
+    public void OnGridCell115() { SelectGridCell(115); }
+    public void OnGridCell116() { SelectGridCell(116); }
+    public void OnGridCell117() { SelectGridCell(117); }
+    public void OnGridCell118() { SelectGridCell(118); }
+    public void OnGridCell119() { SelectGridCell(119); }
 
     public void OnRatingSliderChanged()
     {
@@ -3377,6 +4457,7 @@ public class SurveyManager : UdonSharpBehaviour
             case 0: return "選択式";
             case 1: return "スライダー評価式";
             case 2: return "記述回答式";
+            case 3: return "選択式（グリッド）";
             default: return "選択式";
         }
     }
@@ -3393,9 +4474,9 @@ public class SurveyManager : UdonSharpBehaviour
             int val = (userAnswers != null && index < userAnswers.Length) ? userAnswers[index] : 0;
             return val.ToString();
         }
-        else if (type == 2)
+        else if (type == 2 || type == 3)
         {
-            return (userTextAnswers != null && index < userTextAnswers.Length) ? userTextAnswers[index] : "";
+            return (userTextAnswers != null && index < userTextAnswers.Length && userTextAnswers[index] != null) ? userTextAnswers[index] : "";
         }
         return "";
     }
