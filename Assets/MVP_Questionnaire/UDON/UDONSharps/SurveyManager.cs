@@ -2,13 +2,22 @@ using UdonSharp;
 using UnityEngine;
 using UnityEngine.UI;
 using VRC.SDKBase;
+using VRC.SDK3.StringLoading;
+using VRC.SDK3.Data;
 using VRC.Udon;
 using VRC.Udon.Common.Interfaces;
 
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class SurveyManager : UdonSharpBehaviour
 {
-    [Header("アンケートデータ設定 (Inspectorで設定)")]
+    [Header("オンラインJSON設定 (VRCStringDownloader)")]
+    [Tooltip("有効にすると、ワールド開始時に指定URLのJSONからアンケート質問データを読み込んで反映します")]
+    public bool useOnlineSurveyJson = true;
+
+    [Tooltip("アンケートデータJSONのURL (GitHub GistのRaw URL等)")]
+    public VRCUrl surveyJsonUrl;
+
+    [Header("アンケートデータ設定 (Inspector設定 / オフライン・フォールバック用)")]
     [Tooltip("質問文のリスト")]
     public string[] questionTexts = new string[] {
         "イベントは楽しめましたか？",
@@ -23,7 +32,10 @@ public class SurveyManager : UdonSharpBehaviour
     [Tooltip("選択式の場合の択数 (例: 2択なら2, 3択なら3, 4択なら4)")]
     public int[] choiceCounts = new int[] { 2, 4, 0, 0 };
 
-    [Tooltip("選択式のラベル名リスト (質問数 x 6要素の固定長)")]
+    [Tooltip("選択式の各質問の開始インデックス (自動計算・任意択数対応)")]
+    public int[] optionOffsets;
+
+    [Tooltip("選択式のラベル名リスト")]
     public string[] optionLabels = new string[] {
         "いいえ", "はい", "", "", "", "",
         "PC (VR)", "PC (Desktop)", "Quest", "iOS", "", "",
@@ -68,14 +80,17 @@ public class SurveyManager : UdonSharpBehaviour
     public Text consentNoticeDisplay;
     public Button consentAgreeButton;
     public Button consentDisagreeButton;
+    public string consentTitleText = "アンケート参加の同意確認";
     [TextArea(3, 8)]
     public string consentNoticeText = "【アンケート参加・データ収集に関する同意確認】\n\n本アンケートの回答データは統計・報告目的のみに使用されます。\n内容に同意いただける方は「同意する」を押してアンケートへお進みください。\n「同意しない」を押した場合は、アンケートに回答せず終了します。";
 
     [Header("DTC (位置・視線データ収集) 同意確認画面 UI参照")]
     public GameObject containerDtcConsent;
+    public Text dtcConsentTitleDisplay;
     public Text dtcConsentNoticeDisplay;
     public Button dtcConsentAgreeButton;
     public Button dtcConsentDisagreeButton;
+    public string dtcConsentTitleText = "【位置・視線データ収集に関する同意確認】";
     [TextArea(3, 8)]
     public string dtcConsentNoticeText = "【位置・視線データ収集に関する同意確認】\n\n本ワールドでは研究・統計分析を目的として、プレイヤーの位置および頭部姿勢データを記録する機能があります。\nデータ収集にご同意いただける方は「同意する」を押してください。";
 
@@ -107,6 +122,10 @@ public class SurveyManager : UdonSharpBehaviour
     [Tooltip("ワールド開始時の初期配信対象モード (0: リスト限定 [JsonNames], 1: ワールド全員 [要同意])")]
     public int initialTargetMode = 0; // 0: リスト限定, 1: ワールド全員
 
+    [Header("出題順ランダム並び替え設定")]
+    [Tooltip("有効にすると、カテゴリ順(選択式→スライダー評価→自由記述)を維持したまま、各カテゴリ内の質問順を一括でランダムに並び替えて出題します")]
+    public bool shuffleQuestionsWithinCategory = false;
+
     // ネットワーク同期変数
     [UdonSynced] private string syncedAnsweredPlayers = ""; 
     [UdonSynced] private string syncedLatestResultLog = ""; 
@@ -120,6 +139,7 @@ public class SurveyManager : UdonSharpBehaviour
 
     // 内部状態変数
     private int currentIndex = 0;
+    private int[] questionOrder; // 出題順の質問インデックス配列 (選択式 -> スライダー -> 自由記述)
     private int[] userAnswers;
     private string[] userTextAnswers;
     private bool hasAnswered = false;
@@ -136,18 +156,43 @@ public class SurveyManager : UdonSharpBehaviour
     // ローカルでのDTC同意・辞退回答済みフラグ (アンケート一斉開始時などの不要な再出現を完全に防止)
     private bool hasDtcResponded = false;
 
+    // DTC同意・辞退プレイヤーのローカル蓄積リスト（オーナー権移譲時の同期巻き戻り防止用）
+    private string localRecordedDtcConsentedPlayers = "";
+    private string localRecordedDtcDisagreedPlayers = "";
+
+    // 外部 UdonBehaviour (MVP_DTC_Online) の元の JsonNamesString キャッシュと上書き追跡用
+    private string[] cachedOriginalJsonNames = null;
+    private string[] lastAppliedDtcNamesArray = null;
+    private string lastBuiltDtcConsentedSource = null;
+    private int lastAppliedModeState = -1; // -1: 未適用, 0: リスト限定, 1: ワールド全員
+    private string[] lastBuiltListModePlayerNames = null;
+    private string[] lastBuiltListModeMasterNames = null;
+
+    // オンラインJSON読み込み状態管理
+    private bool isOnlineJsonLoaded = false;
+    private string onlineJsonStatusMessage = "";
+    private int jsonLoadRetryCount = 0;
+
     void Start()
     {
         EnsureUIReferences();
 
+        bool isAllInitial = (initialTargetMode == 1);
+        syncedTargetAllMode = isAllInitial;
+        syncedDtcTargetAllMode = isAllInitial;
+
         bool isOwnerOrLocal = (Networking.LocalPlayer == null || !Networking.LocalPlayer.IsValid() || Networking.IsOwner(gameObject));
         if (isOwnerOrLocal)
         {
-            bool isAll = (initialTargetMode == 1);
-            syncedTargetAllMode = isAll;
-            syncedDtcTargetAllMode = isAll;
             RequestSerialization();
         }
+
+        // ワールド開始直後から外部 UdonBehaviour (MVP_DTC_Online) の対象リストをモードに合わせて即時制御
+        SyncDtcTargetsToUdonBehaviour();
+
+        // ワールド開始時にオンラインJSONからアンケート設定を読み込む
+        jsonLoadRetryCount = 0;
+        LoadSurveyJsonFromUrl();
 
         CheckIfAlreadyAnswered();
 
@@ -197,6 +242,466 @@ public class SurveyManager : UdonSharpBehaviour
 
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 0.6f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 1.6f);
+    }
+
+    void Update()
+    {
+        SyncDtcTargetsToUdonBehaviour();
+    }
+
+    public override void PostLateUpdate()
+    {
+        SyncDtcTargetsToUdonBehaviour();
+    }
+
+    // ==========================================
+    // オンラインJSON読み込み & パース処理 (VRCStringDownloader / VRCJson)
+    // ==========================================
+
+    /// <summary>
+    /// 指定された surveyJsonUrl からアンケート質問データのJSONを非同期ダウンロードする
+    /// </summary>
+    public void LoadSurveyJsonFromUrl()
+    {
+        if (!useOnlineSurveyJson)
+        {
+            int fallbackLen = (questionTexts != null) ? questionTexts.Length : 0;
+            onlineJsonStatusMessage = $"💻 エディタ設定を使用中 (全{fallbackLen}問)";
+            UpdateMasterStatusText();
+            return;
+        }
+
+        if (surveyJsonUrl == null || string.IsNullOrEmpty(surveyJsonUrl.Get()))
+        {
+            int fallbackLen = (questionTexts != null) ? questionTexts.Length : 0;
+            onlineJsonStatusMessage = $"<color=#FFB300>⚠️ URL未設定 (エディタ設定 全{fallbackLen}問を使用中)</color>";
+            UpdateMasterStatusText();
+            return;
+        }
+
+        onlineJsonStatusMessage = "<color=#70D6FF>⏳ オンラインJSON読込中...</color>";
+        UpdateMasterStatusText();
+        VRCStringDownloader.LoadUrl(surveyJsonUrl, (IUdonEventReceiver)this);
+    }
+
+    public void RetryLoadSurveyJson()
+    {
+        if (!isOnlineJsonLoaded && useOnlineSurveyJson)
+        {
+            LoadSurveyJsonFromUrl();
+        }
+    }
+
+    /// <summary>
+    /// RecordMaster専用: 全員のクライアントにオンラインJSONの再読み込みを指示する
+    /// </summary>
+    public void OnReloadSurveyJsonButton()
+    {
+        EnsureUIReferences();
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        string localName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
+
+        if (!CheckIfRecordMaster(localName))
+        {
+            Debug.LogWarning("[SurveyManager] JSON再読込の指示権限がありません。");
+            return;
+        }
+
+        if (masterWarningText != null)
+        {
+            masterWarningText.text = "<color=#70D6FF><b>🌐 オンラインJSONの再読込を開始しました</b></color>";
+        }
+
+        SendCustomNetworkEvent(NetworkEventTarget.All, nameof(ReloadSurveyJsonForEveryone));
+    }
+
+    public void ReloadSurveyJsonForEveryone()
+    {
+        isOnlineJsonLoaded = false;
+        jsonLoadRetryCount = 0;
+        LoadSurveyJsonFromUrl();
+    }
+
+    public override void OnStringLoadSuccess(IVRCStringDownload result)
+    {
+        if (result == null || string.IsNullOrEmpty(result.Result))
+        {
+            int fallbackLen = (questionTexts != null) ? questionTexts.Length : 0;
+            Debug.LogWarning("[SurveyManager] オンラインJSONのレスポンスが空です。Inspectorの設定値を使用します。");
+            onlineJsonStatusMessage = $"<color=#FFB300>⚠️ JSONが空です (エディタ設定 全{fallbackLen}問を使用中)</color>";
+            UpdateMasterStatusText();
+            return;
+        }
+
+        if (ApplySurveyJson(result.Result))
+        {
+            isOnlineJsonLoaded = true;
+            jsonLoadRetryCount = 0;
+            int qLen = (questionTexts != null) ? questionTexts.Length : 0;
+            onlineJsonStatusMessage = $"<color=#4FE369>🌐 オンラインJSON反映済 (全{qLen}問)</color>";
+            Debug.Log($"[SurveyManager] オンラインJSONからアンケート設定を正常に反映しました (全{qLen}問)");
+        }
+        else
+        {
+            int fallbackLen = (questionTexts != null) ? questionTexts.Length : 0;
+            onlineJsonStatusMessage = $"<color=#FFB300>⚠️ JSON解析失敗 (エディタ設定 全{fallbackLen}問を使用中)</color>";
+        }
+
+        UpdateMasterStatusText();
+
+        // 既にアンケート画面が開いていて未回答かつ最初の画面にいる場合は、最新の質問内容を即時反映
+        if (surveyPanel != null && surveyPanel.activeSelf && !hasAnswered && currentIndex == 0)
+        {
+            InitializeSurvey();
+        }
+        // DTC同意確認パネルが表示中であればタイトルと本文も即時更新
+        if (containerDtcConsent != null && containerDtcConsent.activeSelf)
+        {
+            if (dtcConsentTitleDisplay != null && !string.IsNullOrEmpty(dtcConsentTitleText))
+            {
+                dtcConsentTitleDisplay.text = dtcConsentTitleText;
+            }
+            if (dtcConsentNoticeDisplay != null)
+            {
+                dtcConsentNoticeDisplay.text = dtcConsentNoticeText;
+            }
+        }
+    }
+
+    public override void OnStringLoadError(IVRCStringDownload result)
+    {
+        int errCode = (result != null) ? result.ErrorCode : -1;
+        string errMsg = (result != null) ? result.Error : "Unknown";
+        Debug.LogWarning($"[SurveyManager] オンラインJSONの読み込みに失敗しました (Code {errCode}): {errMsg}");
+
+        if (jsonLoadRetryCount < 2)
+        {
+            jsonLoadRetryCount++;
+            onlineJsonStatusMessage = $"<color=#FFB300>⏳ JSON読込リトライ待機中 ({jsonLoadRetryCount}/2)...</color>";
+            SendCustomEventDelayedSeconds(nameof(RetryLoadSurveyJson), 5.0f);
+        }
+        else
+        {
+            int fallbackLen = (questionTexts != null) ? questionTexts.Length : 0;
+            onlineJsonStatusMessage = $"<color=#FF6B6B>⚠️ JSON読込エラー({errCode}) - エディタ設定(全{fallbackLen}問)を使用中</color>";
+        }
+
+        UpdateMasterStatusText();
+    }
+
+    /// <summary>
+    /// JSON文字列を VRCJson でパースして SurveyManager の配列・設定フィールドに反映する
+    /// </summary>
+    public bool ApplySurveyJson(string rawJson)
+    {
+        if (string.IsNullOrEmpty(rawJson)) return false;
+
+        string json = rawJson.Trim();
+        if (json.Length > 0 && json[0] == '\uFEFF')
+        {
+            json = json.Substring(1).Trim();
+        }
+
+        DataToken rootToken;
+        if (!VRCJson.TryDeserializeFromJson(json, out rootToken))
+        {
+            Debug.LogError("[SurveyManager] VRCJson.TryDeserializeFromJson によるJSONのデシリアライズに失敗しました。JSONの文法を確認してください。");
+            return false;
+        }
+
+        DataList questionsList = null;
+
+        if (rootToken.TokenType == TokenType.DataDictionary)
+        {
+            DataDictionary rootDict = rootToken.DataDictionary;
+
+            // アンケート同意確認タイトル (オプション)
+            DataToken consentTitleToken;
+            if (rootDict.TryGetValue("consentTitleText", out consentTitleToken) && consentTitleToken.TokenType == TokenType.String && !string.IsNullOrEmpty(consentTitleToken.String))
+            {
+                consentTitleText = consentTitleToken.String;
+            }
+            else if (rootDict.TryGetValue("consentTitle", out consentTitleToken) && consentTitleToken.TokenType == TokenType.String && !string.IsNullOrEmpty(consentTitleToken.String))
+            {
+                consentTitleText = consentTitleToken.String;
+            }
+
+            // 同意確認文面 (オプション)
+            DataToken consentToken;
+            if (rootDict.TryGetValue("consentNoticeText", out consentToken) && consentToken.TokenType == TokenType.String && !string.IsNullOrEmpty(consentToken.String))
+            {
+                consentNoticeText = consentToken.String;
+                if (consentNoticeDisplay != null) consentNoticeDisplay.text = consentNoticeText;
+            }
+            else if (rootDict.TryGetValue("consentText", out consentToken) && consentToken.TokenType == TokenType.String && !string.IsNullOrEmpty(consentToken.String))
+            {
+                consentNoticeText = consentToken.String;
+                if (consentNoticeDisplay != null) consentNoticeDisplay.text = consentNoticeText;
+            }
+
+            // DTC同意確認タイトル (オプション)
+            DataToken dtcTitleToken;
+            if (rootDict.TryGetValue("dtcConsentTitleText", out dtcTitleToken) && dtcTitleToken.TokenType == TokenType.String && !string.IsNullOrEmpty(dtcTitleToken.String))
+            {
+                dtcConsentTitleText = dtcTitleToken.String;
+                if (dtcConsentTitleDisplay != null) dtcConsentTitleDisplay.text = dtcConsentTitleText;
+            }
+            else if (rootDict.TryGetValue("dtcConsentTitle", out dtcTitleToken) && dtcTitleToken.TokenType == TokenType.String && !string.IsNullOrEmpty(dtcTitleToken.String))
+            {
+                dtcConsentTitleText = dtcTitleToken.String;
+                if (dtcConsentTitleDisplay != null) dtcConsentTitleDisplay.text = dtcConsentTitleText;
+            }
+
+            // DTC同意確認文面 (オプション)
+            DataToken dtcConsentToken;
+            if (rootDict.TryGetValue("dtcConsentNoticeText", out dtcConsentToken) && dtcConsentToken.TokenType == TokenType.String && !string.IsNullOrEmpty(dtcConsentToken.String))
+            {
+                dtcConsentNoticeText = dtcConsentToken.String;
+                if (dtcConsentNoticeDisplay != null) dtcConsentNoticeDisplay.text = dtcConsentNoticeText;
+            }
+            else if (rootDict.TryGetValue("dtcConsentText", out dtcConsentToken) && dtcConsentToken.TokenType == TokenType.String && !string.IsNullOrEmpty(dtcConsentToken.String))
+            {
+                dtcConsentNoticeText = dtcConsentToken.String;
+                if (dtcConsentNoticeDisplay != null) dtcConsentNoticeDisplay.text = dtcConsentNoticeText;
+            }
+
+            // 質問リストの取得 ("questions", "items", "survey" のいずれかに対応)
+            DataToken qListToken;
+            if (rootDict.TryGetValue("questions", out qListToken) && qListToken.TokenType == TokenType.DataList)
+            {
+                questionsList = qListToken.DataList;
+            }
+            else if (rootDict.TryGetValue("items", out qListToken) && qListToken.TokenType == TokenType.DataList)
+            {
+                questionsList = qListToken.DataList;
+            }
+            else if (rootDict.TryGetValue("survey", out qListToken) && qListToken.TokenType == TokenType.DataList)
+            {
+                questionsList = qListToken.DataList;
+            }
+        }
+        else if (rootToken.TokenType == TokenType.DataList)
+        {
+            questionsList = rootToken.DataList;
+        }
+
+        if (questionsList == null || questionsList.Count == 0)
+        {
+            Debug.LogWarning("[SurveyManager] JSON内に有効な questions 配列が見つかりませんでした。");
+            return false;
+        }
+
+        int qCount = questionsList.Count;
+        string[] newQuestionTexts = new string[qCount];
+        int[] newAnswerTypes = new int[qCount];
+        int[] newChoiceCounts = new int[qCount];
+        int[] newOptionOffsets = new int[qCount];
+        int[] newSliderMaxValues = new int[qCount];
+
+        // 最初に全質問の選択肢の総数を計算（任意の択数に対応）
+        int totalOptionsAllocated = 0;
+        for (int i = 0; i < qCount; i++)
+        {
+            newOptionOffsets[i] = totalOptionsAllocated;
+            int countForQ = 6;
+            DataToken itemToken;
+            if (questionsList.TryGetValue(i, out itemToken) && itemToken.TokenType == TokenType.DataDictionary)
+            {
+                DataDictionary qDict = itemToken.DataDictionary;
+                DataToken optsToken;
+                if ((qDict.TryGetValue("options", out optsToken) ||
+                     qDict.TryGetValue("choices", out optsToken) ||
+                     qDict.TryGetValue("labels", out optsToken) ||
+                     qDict.TryGetValue("optionLabels", out optsToken)) && optsToken.TokenType == TokenType.DataList)
+                {
+                    int listLen = optsToken.DataList.Count;
+                    if (listLen > countForQ) countForQ = listLen;
+                }
+            }
+            totalOptionsAllocated += countForQ;
+        }
+
+        string[] newOptionLabels = new string[totalOptionsAllocated];
+        for (int idx = 0; idx < newOptionLabels.Length; idx++)
+        {
+            newOptionLabels[idx] = "";
+        }
+
+        for (int i = 0; i < qCount; i++)
+        {
+            newQuestionTexts[i] = $"質問 {i + 1}";
+            newAnswerTypes[i] = 0;
+            newChoiceCounts[i] = 2;
+            newSliderMaxValues[i] = 5;
+
+            DataToken itemToken;
+            if (!questionsList.TryGetValue(i, out itemToken) || itemToken.TokenType != TokenType.DataDictionary)
+            {
+                continue;
+            }
+
+            DataDictionary qDict = itemToken.DataDictionary;
+
+            // 1. 質問文 ("question", "questionText", "text", "title")
+            DataToken qTextToken;
+            if (qDict.TryGetValue("question", out qTextToken) && qTextToken.TokenType == TokenType.String)
+            {
+                newQuestionTexts[i] = qTextToken.String;
+            }
+            else if (qDict.TryGetValue("questionText", out qTextToken) && qTextToken.TokenType == TokenType.String)
+            {
+                newQuestionTexts[i] = qTextToken.String;
+            }
+            else if (qDict.TryGetValue("text", out qTextToken) && qTextToken.TokenType == TokenType.String)
+            {
+                newQuestionTexts[i] = qTextToken.String;
+            }
+            else if (qDict.TryGetValue("title", out qTextToken) && qTextToken.TokenType == TokenType.String)
+            {
+                newQuestionTexts[i] = qTextToken.String;
+            }
+
+            // 2. 選択肢リスト ("options", "choices", "labels", "optionLabels")
+            DataList optsList = null;
+            DataToken optsToken;
+            if (qDict.TryGetValue("options", out optsToken) && optsToken.TokenType == TokenType.DataList)
+            {
+                optsList = optsToken.DataList;
+            }
+            else if (qDict.TryGetValue("choices", out optsToken) && optsToken.TokenType == TokenType.DataList)
+            {
+                optsList = optsToken.DataList;
+            }
+            else if (qDict.TryGetValue("labels", out optsToken) && optsToken.TokenType == TokenType.DataList)
+            {
+                optsList = optsToken.DataList;
+            }
+            else if (qDict.TryGetValue("optionLabels", out optsToken) && optsToken.TokenType == TokenType.DataList)
+            {
+                optsList = optsToken.DataList;
+            }
+
+            // 3. 回答形式 ("type", "answerType")
+            int parsedType = -1;
+            DataToken typeToken;
+            if (!qDict.TryGetValue("type", out typeToken))
+            {
+                qDict.TryGetValue("answerType", out typeToken);
+            }
+
+            if (typeToken.TokenType == TokenType.Double)
+            {
+                parsedType = Mathf.RoundToInt((float)typeToken.Double);
+            }
+            else if (typeToken.TokenType == TokenType.String)
+            {
+                string ts = typeToken.String.Trim().ToLower();
+                if (ts == "0" || ts == "choice" || ts == "select" || ts == "button" || ts == "選択式" || ts == "選択")
+                {
+                    parsedType = 0;
+                }
+                else if (ts == "1" || ts == "slider" || ts == "rating" || ts == "スライダー" || ts == "スライダー評価式" || ts == "評価")
+                {
+                    parsedType = 1;
+                }
+                else if (ts == "2" || ts == "text" || ts == "input" || ts == "free" || ts == "記述" || ts == "記述回答式" || ts == "自由記述")
+                {
+                    parsedType = 2;
+                }
+            }
+
+            if (parsedType < 0 || parsedType > 2)
+            {
+                if (optsList != null && optsList.Count > 0)
+                {
+                    parsedType = 0;
+                }
+                else if (qDict.ContainsKey("sliderMax") || qDict.ContainsKey("sliderMaxValue") || qDict.ContainsKey("max") || qDict.ContainsKey("maxValue"))
+                {
+                    parsedType = 1;
+                }
+                else
+                {
+                    parsedType = 2;
+                }
+            }
+            newAnswerTypes[i] = parsedType;
+
+            // 4. 選択肢ラベルと択数の設定（上限6の制限を撤廃し、任意の択数に対応）
+            int validOptionCount = 0;
+            int baseOffset = newOptionOffsets[i];
+            if (optsList != null)
+            {
+                for (int c = 0; c < optsList.Count; c++)
+                {
+                    DataToken optItem;
+                    if (optsList.TryGetValue(c, out optItem))
+                    {
+                        if (optItem.TokenType == TokenType.String)
+                        {
+                            newOptionLabels[baseOffset + c] = optItem.String;
+                            if (!string.IsNullOrEmpty(optItem.String)) validOptionCount++;
+                        }
+                        else if (optItem.TokenType == TokenType.Double)
+                        {
+                            newOptionLabels[baseOffset + c] = optItem.Double.ToString();
+                            validOptionCount++;
+                        }
+                    }
+                }
+            }
+
+            DataToken ccToken;
+            if (qDict.TryGetValue("choiceCount", out ccToken) && ccToken.TokenType == TokenType.Double)
+            {
+                int ccVal = Mathf.RoundToInt((float)ccToken.Double);
+                newChoiceCounts[i] = ccVal < 2 ? 2 : ccVal;
+            }
+            else if (validOptionCount > 0)
+            {
+                newChoiceCounts[i] = validOptionCount < 2 ? 2 : validOptionCount;
+            }
+            else if (optsList != null && optsList.Count > 0)
+            {
+                newChoiceCounts[i] = optsList.Count < 2 ? 2 : optsList.Count;
+            }
+            else
+            {
+                newChoiceCounts[i] = (parsedType == 0) ? 2 : 0;
+            }
+
+            // 5. スライダー最大評価値 ("sliderMax", "sliderMaxValue", "max", "maxValue")
+            DataToken smToken;
+            if (!qDict.TryGetValue("sliderMax", out smToken))
+            {
+                if (!qDict.TryGetValue("sliderMaxValue", out smToken))
+                {
+                    if (!qDict.TryGetValue("max", out smToken))
+                    {
+                        qDict.TryGetValue("maxValue", out smToken);
+                    }
+                }
+            }
+
+            if (smToken.TokenType == TokenType.Double)
+            {
+                newSliderMaxValues[i] = Mathf.Clamp(Mathf.RoundToInt((float)smToken.Double), 2, 20);
+            }
+            else
+            {
+                newSliderMaxValues[i] = 5;
+            }
+        }
+
+        questionTexts = newQuestionTexts;
+        answerTypes = newAnswerTypes;
+        choiceCounts = newChoiceCounts;
+        optionOffsets = newOptionOffsets;
+        optionLabels = newOptionLabels;
+        sliderMaxValues = newSliderMaxValues;
+
+        return true;
     }
 
     public override void OnPlayerJoined(VRCPlayerApi player)
@@ -361,6 +866,12 @@ public class SurveyManager : UdonSharpBehaviour
 
         if (containerDtcConsent != null)
         {
+            if (dtcConsentTitleDisplay == null)
+            {
+                Transform t = containerDtcConsent.transform.Find("DtcTitleText");
+                if (t == null) t = containerDtcConsent.transform.Find("TitleText");
+                if (t != null) dtcConsentTitleDisplay = t.GetComponent<Text>();
+            }
             if (dtcConsentNoticeDisplay == null)
             {
                 Transform t = containerDtcConsent.transform.Find("DtcConsentNoticeDisplay");
@@ -389,12 +900,15 @@ public class SurveyManager : UdonSharpBehaviour
     {
         EnsureUIReferences();
         RefreshMasterPanelVisibility();
+        SyncDtcTargetsToUdonBehaviour();
 
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         if (localPlayer != null && localPlayer.IsValid() && player != null && player.IsValid())
         {
             if (player.isLocal)
             {
+                MergeLocalDtcRecordsIntoSynced();
+
                 // 自分が新しくオーナーになった場合、未送信のシリアライズデータがあれば即座に送信
                 if (pendingSerialization)
                 {
@@ -422,6 +936,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             if (Networking.IsOwner(gameObject))
             {
+                MergeLocalDtcRecordsIntoSynced();
                 RequestSerialization();
                 serializationRetryCount++;
                 if (serializationRetryCount >= 3)
@@ -441,6 +956,8 @@ public class SurveyManager : UdonSharpBehaviour
     /// </summary>
     public override void OnDeserialization()
     {
+        SyncDtcPlayersToLocalList();
+        SyncDtcTargetsToUdonBehaviour();
         CheckIfAlreadyAnswered();
         RefreshMasterPanelVisibility();
         CheckAndRestoreSurveyForLocalUser();
@@ -508,7 +1025,7 @@ public class SurveyManager : UdonSharpBehaviour
             return;
         }
 
-        if (!CheckIfUserInVariable(localName, jsonNamesVariableName)) return;
+        if (!syncedTargetAllMode && !CheckIfUserInVariable(localName, jsonNamesVariableName)) return;
 
         CheckIfAlreadyAnswered();
 
@@ -700,7 +1217,7 @@ public class SurveyManager : UdonSharpBehaviour
 
     /// <summary>
     /// RecordMasterがオーナー権を持っている時、マスターが保持する全員分の確定リストを
-    /// syncedAnsweredPlayers にマージして全クライアントへ再配信（自動修復）する
+    /// syncedAnsweredPlayers および DTC同意リストにマージして全クライアントへ再配信（自動修復）する
     /// </summary>
     private void RepairAndBroadcastAnsweredList()
     {
@@ -709,26 +1226,28 @@ public class SurveyManager : UdonSharpBehaviour
         if (!CheckIfRecordMaster(localPlayer.displayName)) return;
         if (!Networking.IsOwner(gameObject)) return;
 
-        if (string.IsNullOrEmpty(masterRecordedAnsweredPlayers)) return;
+        bool changed = MergeLocalDtcRecordsIntoSynced();
 
-        bool changed = false;
-        if (string.IsNullOrEmpty(syncedAnsweredPlayers))
+        if (!string.IsNullOrEmpty(masterRecordedAnsweredPlayers))
         {
-            syncedAnsweredPlayers = ",";
-            changed = true;
-        }
-
-        string[] recorded = masterRecordedAnsweredPlayers.Split(',');
-        for (int i = 0; i < recorded.Length; i++)
-        {
-            string p = recorded[i].Trim();
-            if (!string.IsNullOrEmpty(p))
+            if (string.IsNullOrEmpty(syncedAnsweredPlayers))
             {
-                string key = "," + p.ToLower() + ",";
-                if (!syncedAnsweredPlayers.ToLower().Contains(key))
+                syncedAnsweredPlayers = ",";
+                changed = true;
+            }
+
+            string[] recorded = masterRecordedAnsweredPlayers.Split(',');
+            for (int i = 0; i < recorded.Length; i++)
+            {
+                string p = recorded[i].Trim();
+                if (!string.IsNullOrEmpty(p))
                 {
-                    syncedAnsweredPlayers += p + ",";
-                    changed = true;
+                    string key = "," + p.ToLower() + ",";
+                    if (!syncedAnsweredPlayers.ToLower().Contains(key))
+                    {
+                        syncedAnsweredPlayers += p + ",";
+                        changed = true;
+                    }
                 }
             }
         }
@@ -736,6 +1255,328 @@ public class SurveyManager : UdonSharpBehaviour
         if (changed)
         {
             RequestSerialization();
+        }
+    }
+
+    private void SyncDtcPlayersToLocalList()
+    {
+        if (!string.IsNullOrEmpty(syncedDtcConsentedPlayers))
+        {
+            if (string.IsNullOrEmpty(localRecordedDtcConsentedPlayers))
+            {
+                localRecordedDtcConsentedPlayers = ",";
+            }
+            string[] arr = syncedDtcConsentedPlayers.Split(',');
+            for (int i = 0; i < arr.Length; i++)
+            {
+                string p = arr[i].Trim();
+                if (!string.IsNullOrEmpty(p))
+                {
+                    string key = "," + p + ",";
+                    if (!localRecordedDtcConsentedPlayers.Contains(key))
+                    {
+                        localRecordedDtcConsentedPlayers += p + ",";
+                    }
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(syncedDtcDisagreedPlayers))
+        {
+            if (string.IsNullOrEmpty(localRecordedDtcDisagreedPlayers))
+            {
+                localRecordedDtcDisagreedPlayers = ",";
+            }
+            string[] arr = syncedDtcDisagreedPlayers.Split(',');
+            for (int i = 0; i < arr.Length; i++)
+            {
+                string p = arr[i].Trim();
+                if (!string.IsNullOrEmpty(p))
+                {
+                    string key = "," + p + ",";
+                    if (!localRecordedDtcDisagreedPlayers.Contains(key))
+                    {
+                        localRecordedDtcDisagreedPlayers += p + ",";
+                    }
+                }
+            }
+        }
+    }
+
+    private bool MergeLocalDtcRecordsIntoSynced()
+    {
+        bool changed = false;
+
+        if (!string.IsNullOrEmpty(localRecordedDtcConsentedPlayers))
+        {
+            if (string.IsNullOrEmpty(syncedDtcConsentedPlayers))
+            {
+                syncedDtcConsentedPlayers = ",";
+                changed = true;
+            }
+            string[] arr = localRecordedDtcConsentedPlayers.Split(',');
+            for (int i = 0; i < arr.Length; i++)
+            {
+                string p = arr[i].Trim();
+                if (!string.IsNullOrEmpty(p))
+                {
+                    string key = "," + p + ",";
+                    if (!syncedDtcConsentedPlayers.Contains(key))
+                    {
+                        syncedDtcConsentedPlayers += p + ",";
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(localRecordedDtcDisagreedPlayers))
+        {
+            if (string.IsNullOrEmpty(syncedDtcDisagreedPlayers))
+            {
+                syncedDtcDisagreedPlayers = ",";
+                changed = true;
+            }
+            string[] arr = localRecordedDtcDisagreedPlayers.Split(',');
+            for (int i = 0; i < arr.Length; i++)
+            {
+                string p = arr[i].Trim();
+                if (!string.IsNullOrEmpty(p))
+                {
+                    string key = "," + p + ",";
+                    if (!syncedDtcDisagreedPlayers.Contains(key))
+                    {
+                        syncedDtcDisagreedPlayers += p + ",";
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        return changed;
+    }
+
+    /// <summary>
+    /// リスト限定モード用の対象プレイヤー配列 (VRCanswers.json の PlayerNames) を取得する
+    /// ワールド全員モード中に上書きされている場合はキャッシュされた元の配列を返す
+    /// </summary>
+    private string[] GetListModeJsonNames()
+    {
+        if (targetUdonBehaviour != null && !string.IsNullOrEmpty(jsonNamesVariableName))
+        {
+            object val = targetUdonBehaviour.GetProgramVariable(jsonNamesVariableName);
+            if (val != null)
+            {
+                string[] currentArr = (string[])val;
+                if (currentArr != null && currentArr != lastAppliedDtcNamesArray)
+                {
+                    cachedOriginalJsonNames = currentArr;
+                }
+            }
+        }
+        return cachedOriginalJsonNames;
+    }
+
+    /// <summary>
+    /// DTC同意済みプレイヤー文字列 (,Player1,Player2,) から string[] 配列を構築する
+    /// </summary>
+    private string[] BuildDtcConsentedPlayersArray(string sourceStr)
+    {
+        if (string.IsNullOrEmpty(sourceStr))
+        {
+            return new string[0];
+        }
+
+        string[] parts = sourceStr.Split(',');
+        int validCount = 0;
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(parts[i]) && !string.IsNullOrEmpty(parts[i].Trim()))
+            {
+                validCount++;
+            }
+        }
+
+        if (validCount == 0)
+        {
+            return new string[0];
+        }
+
+        string[] result = new string[validCount];
+        int idx = 0;
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (!string.IsNullOrEmpty(parts[i]))
+            {
+                string trimmed = parts[i].Trim();
+                if (!string.IsNullOrEmpty(trimmed))
+                {
+                    result[idx] = trimmed;
+                    idx++;
+                }
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// リスト限定モード時に [MVP_DTC] の出力対象とする配列 (StaffNames + PlayerNames の重複なし結合配列) を構築する
+    /// </summary>
+    private string[] BuildListModeDtcTargetArray(string[] playerNames, string[] masterNames)
+    {
+        int maxLen = 0;
+        if (masterNames != null) maxLen += masterNames.Length;
+        if (allowedUserNames != null) maxLen += allowedUserNames.Length;
+        if (playerNames != null) maxLen += playerNames.Length;
+
+        if (maxLen == 0)
+        {
+            return new string[0];
+        }
+
+        string[] temp = new string[maxLen];
+        int count = 0;
+
+        // 1. StaffNames (RecordMasterNames) を追加
+        if (masterNames != null)
+        {
+            for (int i = 0; i < masterNames.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(masterNames[i]))
+                {
+                    string name = masterNames[i].Trim();
+                    if (!string.IsNullOrEmpty(name) && !ContainsNameIgnoreCase(temp, count, name))
+                    {
+                        temp[count] = name;
+                        count++;
+                    }
+                }
+            }
+        }
+
+        // 2. Inspector直指定の allowedUserNames があれば追加
+        if (allowedUserNames != null)
+        {
+            for (int i = 0; i < allowedUserNames.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(allowedUserNames[i]))
+                {
+                    string name = allowedUserNames[i].Trim();
+                    if (!string.IsNullOrEmpty(name) && !ContainsNameIgnoreCase(temp, count, name))
+                    {
+                        temp[count] = name;
+                        count++;
+                    }
+                }
+            }
+        }
+
+        // 3. PlayerNames (JsonNamesString) を追加
+        if (playerNames != null)
+        {
+            for (int i = 0; i < playerNames.Length; i++)
+            {
+                if (!string.IsNullOrEmpty(playerNames[i]))
+                {
+                    string name = playerNames[i].Trim();
+                    if (!string.IsNullOrEmpty(name) && !ContainsNameIgnoreCase(temp, count, name))
+                    {
+                        temp[count] = name;
+                        count++;
+                    }
+                }
+            }
+        }
+
+        string[] result = new string[count];
+        for (int i = 0; i < count; i++)
+        {
+            result[i] = temp[i];
+        }
+        return result;
+    }
+
+    private bool ContainsNameIgnoreCase(string[] arr, int currentCount, string target)
+    {
+        string targetLower = target.ToLower();
+        for (int i = 0; i < currentCount; i++)
+        {
+            if (arr[i] != null && arr[i].ToLower() == targetLower)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 外部 UdonBehaviour (MVP_DTC_Online / DatacollectionJson) の JsonNamesString を
+    /// 現在のモードおよび DTC 同意状態 (syncedDtcConsentedPlayers) に合わせて同期・制御する
+    /// ・ワールド全員モード時: 同意確認で「同意する」を押したプレイヤーのみを [MVP_DTC] ログに出力
+    /// ・リスト限定モード時: StaffNames (RecordMasterNames) と PlayerNames (JsonNamesString) の両方を [MVP_DTC] ログに出力
+    /// </summary>
+    public void SyncDtcTargetsToUdonBehaviour()
+    {
+        if (targetUdonBehaviour == null || string.IsNullOrEmpty(jsonNamesVariableName)) return;
+
+        object currentObj = targetUdonBehaviour.GetProgramVariable(jsonNamesVariableName);
+        string[] currentArr = (currentObj != null) ? (string[])currentObj : null;
+
+        // 外部 UdonBehaviour 側 (VRCStringDownloader 等) が新しい配列をセットした場合は元の PlayerNames リストとしてキャッシュする
+        if (currentArr != null && currentArr != lastAppliedDtcNamesArray)
+        {
+            cachedOriginalJsonNames = currentArr;
+        }
+
+        if (syncedDtcTargetAllMode)
+        {
+            // ワールド全員モード: 同意確認パネルで「同意する」を押したプレイヤーのみを出力
+            string combinedSource = !string.IsNullOrEmpty(localRecordedDtcConsentedPlayers)
+                ? localRecordedDtcConsentedPlayers
+                : syncedDtcConsentedPlayers;
+            if (combinedSource == null) combinedSource = "";
+
+            if (lastAppliedModeState != 1 || lastAppliedDtcNamesArray == null || lastBuiltDtcConsentedSource != combinedSource)
+            {
+                lastAppliedModeState = 1;
+                lastBuiltDtcConsentedSource = combinedSource;
+                lastAppliedDtcNamesArray = BuildDtcConsentedPlayersArray(combinedSource);
+            }
+
+            if (currentArr != lastAppliedDtcNamesArray)
+            {
+                targetUdonBehaviour.SetProgramVariable(jsonNamesVariableName, lastAppliedDtcNamesArray);
+            }
+        }
+        else
+        {
+            // リスト限定モード: StaffNames (RecordMasterNames) と PlayerNames (cachedOriginalJsonNames) の両方を出力対象にする
+            string[] currentMasterNames = null;
+            if (!string.IsNullOrEmpty(recordMasterVariableName))
+            {
+                object masterObj = targetUdonBehaviour.GetProgramVariable(recordMasterVariableName);
+                if (masterObj != null)
+                {
+                    currentMasterNames = (string[])masterObj;
+                }
+            }
+
+            if (lastAppliedModeState != 0 ||
+                lastAppliedDtcNamesArray == null ||
+                lastBuiltListModePlayerNames != cachedOriginalJsonNames ||
+                lastBuiltListModeMasterNames != currentMasterNames)
+            {
+                lastAppliedModeState = 0;
+                lastBuiltListModePlayerNames = cachedOriginalJsonNames;
+                lastBuiltListModeMasterNames = currentMasterNames;
+                lastBuiltDtcConsentedSource = null;
+                lastAppliedDtcNamesArray = BuildListModeDtcTargetArray(cachedOriginalJsonNames, currentMasterNames);
+            }
+
+            if (currentArr != lastAppliedDtcNamesArray)
+            {
+                targetUdonBehaviour.SetProgramVariable(jsonNamesVariableName, lastAppliedDtcNamesArray);
+            }
         }
     }
 
@@ -855,15 +1696,7 @@ public class SurveyManager : UdonSharpBehaviour
 
     private int GetPresentJsonNamesUserCount()
     {
-        string[] targetNames = null;
-        if (targetUdonBehaviour != null && !string.IsNullOrEmpty(jsonNamesVariableName))
-        {
-            object val = targetUdonBehaviour.GetProgramVariable(jsonNamesVariableName);
-            if (val != null)
-            {
-                targetNames = (string[])val;
-            }
-        }
+        string[] targetNames = GetListModeJsonNames();
         if (targetNames == null || targetNames.Length == 0)
         {
             targetNames = allowedUserNames;
@@ -927,6 +1760,7 @@ public class SurveyManager : UdonSharpBehaviour
 
         syncedTargetAllMode = isAllMode;
         syncedDtcTargetAllMode = isAllMode;
+        SyncDtcTargetsToUdonBehaviour();
         RequestSerialization();
 
         string modeLabel = syncedTargetAllMode ? "🌐 ワールド全員 (同意画面・固定表示)" : "🎯 リスト限定 (JsonNames)";
@@ -999,6 +1833,11 @@ public class SurveyManager : UdonSharpBehaviour
                 if (disagreeImg != null) disagreeImg.raycastTarget = true;
             }
 
+            if (dtcConsentTitleDisplay != null)
+            {
+                dtcConsentTitleDisplay.text = !string.IsNullOrEmpty(dtcConsentTitleText) ? dtcConsentTitleText : "【位置・視線データ収集に関する同意確認】";
+            }
+
             if (dtcConsentNoticeDisplay != null)
             {
                 dtcConsentNoticeDisplay.text = dtcConsentNoticeText;
@@ -1025,18 +1864,30 @@ public class SurveyManager : UdonSharpBehaviour
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         string playerName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
 
+        if (string.IsNullOrEmpty(localRecordedDtcConsentedPlayers))
+        {
+            localRecordedDtcConsentedPlayers = ",";
+        }
+        string nameKey = playerName + ",";
+        if (!localRecordedDtcConsentedPlayers.Contains("," + nameKey))
+        {
+            localRecordedDtcConsentedPlayers += nameKey;
+        }
+
+        if (string.IsNullOrEmpty(syncedDtcConsentedPlayers))
+        {
+            syncedDtcConsentedPlayers = ",";
+        }
+        if (!syncedDtcConsentedPlayers.Contains("," + nameKey))
+        {
+            syncedDtcConsentedPlayers += nameKey;
+        }
+
+        MergeLocalDtcRecordsIntoSynced();
+        SyncDtcTargetsToUdonBehaviour();
+
         if (localPlayer != null && localPlayer.IsValid())
         {
-            if (string.IsNullOrEmpty(syncedDtcConsentedPlayers))
-            {
-                syncedDtcConsentedPlayers = ",";
-            }
-            string nameKey = playerName + ",";
-            if (!syncedDtcConsentedPlayers.Contains("," + nameKey))
-            {
-                syncedDtcConsentedPlayers += nameKey;
-            }
-
             pendingSerialization = true;
             serializationRetryCount = 0;
 
@@ -1052,6 +1903,7 @@ public class SurveyManager : UdonSharpBehaviour
             SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.2f);
             SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.5f);
             SendCustomEventDelayedSeconds(nameof(RetrySerialization), 1.0f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 2.0f);
         }
 
         Debug.LogWarning($"★ [MVP_DTC] {playerName}: 同意（データ記録対象に登録されました）");
@@ -1059,6 +1911,8 @@ public class SurveyManager : UdonSharpBehaviour
         if (containerDtcConsent != null) containerDtcConsent.SetActive(false);
 
         SendCustomNetworkEvent(NetworkEventTarget.All, nameof(OnReceiveDtcStatusUpdateNet));
+        SendCustomEventDelayedSeconds(nameof(TriggerDelayedDtcBroadcast), 0.3f);
+        SendCustomEventDelayedSeconds(nameof(TriggerDelayedDtcBroadcast), 1.0f);
     }
 
     public void OnDtcConsentDisagree()
@@ -1070,18 +1924,30 @@ public class SurveyManager : UdonSharpBehaviour
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         string playerName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
 
+        if (string.IsNullOrEmpty(localRecordedDtcDisagreedPlayers))
+        {
+            localRecordedDtcDisagreedPlayers = ",";
+        }
+        string nameKey = playerName + ",";
+        if (!localRecordedDtcDisagreedPlayers.Contains("," + nameKey))
+        {
+            localRecordedDtcDisagreedPlayers += nameKey;
+        }
+
+        if (string.IsNullOrEmpty(syncedDtcDisagreedPlayers))
+        {
+            syncedDtcDisagreedPlayers = ",";
+        }
+        if (!syncedDtcDisagreedPlayers.Contains("," + nameKey))
+        {
+            syncedDtcDisagreedPlayers += nameKey;
+        }
+
+        MergeLocalDtcRecordsIntoSynced();
+        SyncDtcTargetsToUdonBehaviour();
+
         if (localPlayer != null && localPlayer.IsValid())
         {
-            if (string.IsNullOrEmpty(syncedDtcDisagreedPlayers))
-            {
-                syncedDtcDisagreedPlayers = ",";
-            }
-            string nameKey = playerName + ",";
-            if (!syncedDtcDisagreedPlayers.Contains("," + nameKey))
-            {
-                syncedDtcDisagreedPlayers += nameKey;
-            }
-
             pendingSerialization = true;
             serializationRetryCount = 0;
 
@@ -1097,6 +1963,7 @@ public class SurveyManager : UdonSharpBehaviour
             SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.2f);
             SendCustomEventDelayedSeconds(nameof(RetrySerialization), 0.5f);
             SendCustomEventDelayedSeconds(nameof(RetrySerialization), 1.0f);
+            SendCustomEventDelayedSeconds(nameof(RetrySerialization), 2.0f);
         }
 
         Debug.LogWarning($"★ [MVP_DTC] {playerName}: 同意辞退（データ記録対象外）");
@@ -1104,10 +1971,19 @@ public class SurveyManager : UdonSharpBehaviour
         if (containerDtcConsent != null) containerDtcConsent.SetActive(false);
 
         SendCustomNetworkEvent(NetworkEventTarget.All, nameof(OnReceiveDtcStatusUpdateNet));
+        SendCustomEventDelayedSeconds(nameof(TriggerDelayedDtcBroadcast), 0.3f);
+        SendCustomEventDelayedSeconds(nameof(TriggerDelayedDtcBroadcast), 1.0f);
+    }
+
+    public void TriggerDelayedDtcBroadcast()
+    {
+        SendCustomNetworkEvent(NetworkEventTarget.All, nameof(OnReceiveDtcStatusUpdateNet));
     }
 
     public void OnReceiveDtcStatusUpdateNet()
     {
+        SyncDtcPlayersToLocalList();
+        SyncDtcTargetsToUdonBehaviour();
         RefreshMasterPanelVisibility();
     }
 
@@ -1117,8 +1993,10 @@ public class SurveyManager : UdonSharpBehaviour
         if (string.IsNullOrEmpty(playerName)) return false;
         string nameKey = "," + playerName.Trim().ToLower() + ",";
 
-        bool isAgreed = !string.IsNullOrEmpty(syncedDtcConsentedPlayers) && syncedDtcConsentedPlayers.ToLower().Contains(nameKey);
-        bool isDisagreed = !string.IsNullOrEmpty(syncedDtcDisagreedPlayers) && syncedDtcDisagreedPlayers.ToLower().Contains(nameKey);
+        bool isAgreed = (!string.IsNullOrEmpty(syncedDtcConsentedPlayers) && syncedDtcConsentedPlayers.ToLower().Contains(nameKey)) ||
+                        (!string.IsNullOrEmpty(localRecordedDtcConsentedPlayers) && localRecordedDtcConsentedPlayers.ToLower().Contains(nameKey));
+        bool isDisagreed = (!string.IsNullOrEmpty(syncedDtcDisagreedPlayers) && syncedDtcDisagreedPlayers.ToLower().Contains(nameKey)) ||
+                           (!string.IsNullOrEmpty(localRecordedDtcDisagreedPlayers) && localRecordedDtcDisagreedPlayers.ToLower().Contains(nameKey));
 
         return isAgreed || isDisagreed;
     }
@@ -1126,16 +2004,17 @@ public class SurveyManager : UdonSharpBehaviour
     public bool IsUserDtcTarget(string playerName)
     {
         if (string.IsNullOrEmpty(playerName)) return false;
-        // RecordMasterNamesのプレイヤーは同意確認パネルの選択に関わらず、デフォルトで[MVP_DTC]データ記録対象とする
-        if (CheckIfRecordMaster(playerName)) return true;
 
         if (syncedDtcTargetAllMode)
         {
             string nameKey = "," + playerName.Trim().ToLower() + ",";
-            return !string.IsNullOrEmpty(syncedDtcConsentedPlayers) && syncedDtcConsentedPlayers.ToLower().Contains(nameKey);
+            return (!string.IsNullOrEmpty(syncedDtcConsentedPlayers) && syncedDtcConsentedPlayers.ToLower().Contains(nameKey)) ||
+                   (!string.IsNullOrEmpty(localRecordedDtcConsentedPlayers) && localRecordedDtcConsentedPlayers.ToLower().Contains(nameKey));
         }
         else
         {
+            // リスト限定モード時は StaffNames (RecordMaster) または PlayerNames (JsonNamesString) の両方を出力対象とする
+            if (CheckIfRecordMaster(playerName)) return true;
             return CheckIfUserInVariable(playerName, jsonNamesVariableName);
         }
     }
@@ -1184,6 +2063,11 @@ public class SurveyManager : UdonSharpBehaviour
                     dtcConsentDisagreeButton.interactable = true;
                     Image disagreeImg = dtcConsentDisagreeButton.GetComponent<Image>();
                     if (disagreeImg != null) disagreeImg.raycastTarget = true;
+                }
+
+                if (dtcConsentTitleDisplay != null)
+                {
+                    dtcConsentTitleDisplay.text = !string.IsNullOrEmpty(dtcConsentTitleText) ? dtcConsentTitleText : "【位置・視線データ収集に関する同意確認】";
                 }
 
                 if (dtcConsentNoticeDisplay != null)
@@ -1277,14 +2161,7 @@ public class SurveyManager : UdonSharpBehaviour
         }
         else
         {
-            if (targetUdonBehaviour != null && !string.IsNullOrEmpty(jsonNamesVariableName))
-            {
-                object val = targetUdonBehaviour.GetProgramVariable(jsonNamesVariableName);
-                if (val != null)
-                {
-                    targetNames = (string[])val;
-                }
-            }
+            targetNames = GetListModeJsonNames();
             if (targetNames == null || targetNames.Length == 0)
             {
                 targetNames = allowedUserNames;
@@ -1341,14 +2218,18 @@ public class SurveyManager : UdonSharpBehaviour
         if (masterStatusText != null)
         {
             string modeTitle = syncedTargetAllMode ? "🌐 ワールド全員モード (同意画面あり)" : "🎯 リスト限定モード (JsonNames)";
+            string jsonInfo = !string.IsNullOrEmpty(onlineJsonStatusMessage)
+                ? $"<b>【質問データ: {onlineJsonStatusMessage}】</b>\n"
+                : "";
+
             if (totalTargetCount == 0 && !syncedTargetAllMode)
             {
-                masterStatusText.text = $"<b>【配信対象: {modeTitle}】</b>\n対象ユーザーリスト (JsonNamesString) が空です。";
+                masterStatusText.text = jsonInfo + $"<b>【配信対象: {modeTitle}】</b>\n対象ユーザーリスト (JsonNamesString) が空です。";
             }
             else
             {
                 int percent = (presentTargetCount > 0) ? Mathf.RoundToInt((float)answeredCount / presentTargetCount * 100f) : 0;
-                string header = $"<b>【配信対象: {modeTitle}】</b>\n<b>【滞在中回答進捗: {answeredCount} / {presentTargetCount} 人 ({percent}%)】</b>\n\n";
+                string header = jsonInfo + $"<b>【配信対象: {modeTitle}】</b>\n<b>【滞在中回答進捗: {answeredCount} / {presentTargetCount} 人 ({percent}%)】</b>\n\n";
 
                 string body = "";
                 if (unAnsweredCount > 0)
@@ -1668,7 +2549,10 @@ public class SurveyManager : UdonSharpBehaviour
         pendingSerialization = false;
         syncedDtcConsentedPlayers = "";
         syncedDtcDisagreedPlayers = "";
+        localRecordedDtcConsentedPlayers = "";
+        localRecordedDtcDisagreedPlayers = "";
         hasDtcResponded = false;
+        SyncDtcTargetsToUdonBehaviour();
         RequestSerialization();
 
         if (masterWarningText != null)
@@ -1687,11 +2571,24 @@ public class SurveyManager : UdonSharpBehaviour
 
         hasAnswered = false;
         hasDtcResponded = false;
+        syncedDtcConsentedPlayers = "";
+        syncedDtcDisagreedPlayers = "";
+        localRecordedDtcConsentedPlayers = "";
+        localRecordedDtcDisagreedPlayers = "";
+        pendingSerialization = false;
         currentIndex = 0;
+
+        SyncDtcTargetsToUdonBehaviour();
+        CheckAndRestoreDtcConsentForLocalUser();
 
         // 全回答者の画面からアンケートパネルおよび完了結果パネルを即座に消す（非表示）
         if (surveyPanel != null) surveyPanel.SetActive(false);
         if (resultPanel != null) resultPanel.SetActive(false);
+
+        // リセット時にオンラインJSONも再取得して最新の質問を反映
+        isOnlineJsonLoaded = false;
+        jsonLoadRetryCount = 0;
+        LoadSurveyJsonFromUrl();
 
         RefreshMasterPanelVisibility();
     }
@@ -1855,7 +2752,7 @@ public class SurveyManager : UdonSharpBehaviour
 
             if (titleText != null)
             {
-                titleText.text = "アンケート参加の同意確認";
+                titleText.text = !string.IsNullOrEmpty(consentTitleText) ? consentTitleText : "アンケート参加の同意確認";
             }
             if (questionText != null)
             {
@@ -1871,6 +2768,7 @@ public class SurveyManager : UdonSharpBehaviour
             {
                 userAnswers = new int[questionTexts.Length];
                 userTextAnswers = new string[questionTexts.Length];
+                BuildQuestionOrder();
 
                 if (resultPanel != null) resultPanel.SetActive(false);
                 if (surveyPanel != null) surveyPanel.SetActive(true);
@@ -1884,6 +2782,105 @@ public class SurveyManager : UdonSharpBehaviour
         }
     }
 
+    /// <summary>
+    /// 出題順配列 questionOrder を構築する（選択式 -> スライダー評価 -> 自由記述 の順、各項目内でランダム並び替え設定を反映）
+    /// </summary>
+    private void BuildQuestionOrder()
+    {
+        int qCount = (questionTexts != null) ? questionTexts.Length : 0;
+        questionOrder = new int[qCount];
+        if (qCount == 0) return;
+
+        int[] choiceIndices = new int[qCount];
+        int choiceLen = 0;
+        int[] sliderIndices = new int[qCount];
+        int sliderLen = 0;
+        int[] textIndices = new int[qCount];
+        int textLen = 0;
+
+        for (int i = 0; i < qCount; i++)
+        {
+            int t = (answerTypes != null && i < answerTypes.Length) ? answerTypes[i] : 0;
+            if (t == 0)
+            {
+                choiceIndices[choiceLen] = i;
+                choiceLen++;
+            }
+            else if (t == 1)
+            {
+                sliderIndices[sliderLen] = i;
+                sliderLen++;
+            }
+            else
+            {
+                textIndices[textLen] = i;
+                textLen++;
+            }
+        }
+
+        if (shuffleQuestionsWithinCategory)
+        {
+            if (choiceLen > 1)
+            {
+                for (int i = choiceLen - 1; i > 0; i--)
+                {
+                    int r = Random.Range(0, i + 1);
+                    int tmp = choiceIndices[i];
+                    choiceIndices[i] = choiceIndices[r];
+                    choiceIndices[r] = tmp;
+                }
+            }
+
+            if (sliderLen > 1)
+            {
+                for (int i = sliderLen - 1; i > 0; i--)
+                {
+                    int r = Random.Range(0, i + 1);
+                    int tmp = sliderIndices[i];
+                    sliderIndices[i] = sliderIndices[r];
+                    sliderIndices[r] = tmp;
+                }
+            }
+
+            if (textLen > 1)
+            {
+                for (int i = textLen - 1; i > 0; i--)
+                {
+                    int r = Random.Range(0, i + 1);
+                    int tmp = textIndices[i];
+                    textIndices[i] = textIndices[r];
+                    textIndices[r] = tmp;
+                }
+            }
+        }
+
+        int pos = 0;
+        for (int i = 0; i < choiceLen; i++)
+        {
+            questionOrder[pos] = choiceIndices[i];
+            pos++;
+        }
+        for (int i = 0; i < sliderLen; i++)
+        {
+            questionOrder[pos] = sliderIndices[i];
+            pos++;
+        }
+        for (int i = 0; i < textLen; i++)
+        {
+            questionOrder[pos] = textIndices[i];
+            pos++;
+        }
+    }
+
+    private int GetActualQuestionIndex(int stepIndex)
+    {
+        if (questionOrder != null && stepIndex >= 0 && stepIndex < questionOrder.Length)
+        {
+            return questionOrder[stepIndex];
+        }
+        return stepIndex;
+    }
+
     public void OnConsentAgree()
     {
         EnsureUIReferences();
@@ -1894,6 +2891,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             userAnswers = new int[questionTexts.Length];
             userTextAnswers = new string[questionTexts.Length];
+            BuildQuestionOrder();
 
             ShowQuestion(currentIndex);
         }
@@ -1928,9 +2926,98 @@ public class SurveyManager : UdonSharpBehaviour
         SendCustomEventDelayedSeconds(nameof(HideResultPanel), 5.0f);
     }
 
+    public string GetOptionLabel(int questionIndex, int choiceIndex)
+    {
+        if (optionLabels == null || optionLabels.Length == 0) return $"選択肢 {choiceIndex + 1}";
+
+        int baseIdx = 0;
+        if (optionOffsets != null && questionIndex >= 0 && questionIndex < optionOffsets.Length)
+        {
+            baseIdx = optionOffsets[questionIndex];
+        }
+        else
+        {
+            int qLen = (questionTexts != null && questionTexts.Length > 0) ? questionTexts.Length : 1;
+            int stride = optionLabels.Length / qLen;
+            if (stride < 1) stride = 6;
+            baseIdx = questionIndex * stride;
+        }
+
+        int labelIdx = baseIdx + choiceIndex;
+        if (labelIdx >= 0 && labelIdx < optionLabels.Length && !string.IsNullOrEmpty(optionLabels[labelIdx]))
+        {
+            return optionLabels[labelIdx];
+        }
+        return $"選択肢 {choiceIndex + 1}";
+    }
+
+    /// <summary>
+    /// 選択肢の数(count)に応じてボタンのサイズ・フォント・グリッド配置を自動調整する
+    /// </summary>
+    private void LayoutChoiceButtons(int count)
+    {
+        if (choiceButtons == null || count <= 0) return;
+
+        int activeCount = count < choiceButtons.Length ? count : choiceButtons.Length;
+
+        int cols = 2;
+        if (activeCount <= 6) cols = 2;
+        else if (activeCount <= 12) cols = 3;
+        else cols = 4;
+
+        int rows = (activeCount + cols - 1) / cols;
+        if (rows < 1) rows = 1;
+
+        float totalW = 860f;
+        float totalH = 260f;
+        float gapX = 16f;
+        float gapY = rows <= 3 ? 14f : 8f;
+
+        float btnW = (totalW - gapX * (cols - 1)) / cols;
+        if (btnW > 400f) btnW = 400f;
+
+        float btnH = (totalH - gapY * (rows - 1)) / rows;
+        if (btnH > 65f) btnH = 65f;
+        if (btnH < 32f) btnH = 32f;
+
+        int fontSize = 24;
+        if (rows == 4) fontSize = 20;
+        else if (rows >= 5) fontSize = 16;
+
+        float gridW = cols * btnW + (cols - 1) * gapX;
+        float gridH = rows * btnH + (rows - 1) * gapY;
+        float startX = -gridW * 0.5f + btnW * 0.5f;
+        float startY = gridH * 0.5f - btnH * 0.5f;
+
+        for (int i = 0; i < activeCount; i++)
+        {
+            if (choiceButtons[i] != null)
+            {
+                RectTransform rt = choiceButtons[i].GetComponent<RectTransform>();
+                if (rt != null)
+                {
+                    int r = i / cols;
+                    int c = i % cols;
+                    float x = startX + c * (btnW + gapX);
+                    float y = startY - r * (btnH + gapY);
+                    rt.anchoredPosition = new Vector2(x, y);
+                    rt.sizeDelta = new Vector2(btnW, btnH);
+                }
+
+                if (choiceButtonTexts != null && i < choiceButtonTexts.Length && choiceButtonTexts[i] != null)
+                {
+                    choiceButtonTexts[i].fontSize = fontSize;
+                }
+            }
+        }
+    }
+
     public void ShowQuestion(int index)
     {
         if (index < 0 || index >= questionTexts.Length) return;
+
+        int actualIndex = GetActualQuestionIndex(index);
+        if (actualIndex < 0 || actualIndex >= questionTexts.Length) actualIndex = index;
 
         if (containerConsent != null) containerConsent.SetActive(false);
 
@@ -1940,25 +3027,24 @@ public class SurveyManager : UdonSharpBehaviour
         }
         if (questionText != null)
         {
-            questionText.text = questionTexts[index];
+            questionText.text = questionTexts[actualIndex];
         }
 
         if (containerChoice != null) containerChoice.SetActive(false);
         if (containerRating != null) containerRating.SetActive(false);
         if (containerTextInput != null) containerTextInput.SetActive(false);
 
-        int type = (answerTypes != null && index < answerTypes.Length) ? answerTypes[index] : 0;
+        int type = (answerTypes != null && actualIndex < answerTypes.Length) ? answerTypes[actualIndex] : 0;
 
         switch (type)
         {
             case 0: // 選択式
                 if (containerChoice != null) containerChoice.SetActive(true);
 
-                int count = (choiceCounts != null && index < choiceCounts.Length) ? choiceCounts[index] : 2;
+                int count = (choiceCounts != null && actualIndex < choiceCounts.Length) ? choiceCounts[actualIndex] : 2;
                 if (count < 1) count = 2;
                 if (choiceButtons != null)
                 {
-                    int labelOffset = index * 6;
                     for (int i = 0; i < choiceButtons.Length; i++)
                     {
                         if (choiceButtons[i] != null)
@@ -1966,17 +3052,9 @@ public class SurveyManager : UdonSharpBehaviour
                             if (i < count)
                             {
                                 choiceButtons[i].SetActive(true);
-                                int labelIdx = labelOffset + i;
                                 if (choiceButtonTexts != null && i < choiceButtonTexts.Length && choiceButtonTexts[i] != null)
                                 {
-                                    if (optionLabels != null && labelIdx < optionLabels.Length && !string.IsNullOrEmpty(optionLabels[labelIdx]))
-                                    {
-                                        choiceButtonTexts[i].text = optionLabels[labelIdx];
-                                    }
-                                    else
-                                    {
-                                        choiceButtonTexts[i].text = $"選択肢 {i + 1}";
-                                    }
+                                    choiceButtonTexts[i].text = GetOptionLabel(actualIndex, i);
                                 }
                             }
                             else
@@ -1985,6 +3063,7 @@ public class SurveyManager : UdonSharpBehaviour
                             }
                         }
                     }
+                    LayoutChoiceButtons(count);
                 }
                 break;
 
@@ -1992,7 +3071,7 @@ public class SurveyManager : UdonSharpBehaviour
                 if (containerRating != null) containerRating.SetActive(true);
                 if (ratingSlider != null)
                 {
-                    int maxVal = (sliderMaxValues != null && index < sliderMaxValues.Length) ? sliderMaxValues[index] : 5;
+                    int maxVal = (sliderMaxValues != null && actualIndex < sliderMaxValues.Length) ? sliderMaxValues[actualIndex] : 5;
                     if (maxVal < 2) maxVal = 5;
 
                     ratingSlider.minValue = 1;
@@ -2014,10 +3093,11 @@ public class SurveyManager : UdonSharpBehaviour
 
     public void SelectAnswer(int answerValue)
     {
-        if (userAnswers != null && currentIndex < userAnswers.Length)
+        int actualIndex = GetActualQuestionIndex(currentIndex);
+        if (userAnswers != null && actualIndex >= 0 && actualIndex < userAnswers.Length)
         {
-            userAnswers[currentIndex] = answerValue;
-            userTextAnswers[currentIndex] = answerValue.ToString();
+            userAnswers[actualIndex] = answerValue;
+            userTextAnswers[actualIndex] = answerValue.ToString();
         }
 
         NextQuestion();
@@ -2029,6 +3109,24 @@ public class SurveyManager : UdonSharpBehaviour
     public void OnChoiceOption3() { SelectAnswer(3); }
     public void OnChoiceOption4() { SelectAnswer(4); }
     public void OnChoiceOption5() { SelectAnswer(5); }
+    public void OnChoiceOption6() { SelectAnswer(6); }
+    public void OnChoiceOption7() { SelectAnswer(7); }
+    public void OnChoiceOption8() { SelectAnswer(8); }
+    public void OnChoiceOption9() { SelectAnswer(9); }
+    public void OnChoiceOption10() { SelectAnswer(10); }
+    public void OnChoiceOption11() { SelectAnswer(11); }
+    public void OnChoiceOption12() { SelectAnswer(12); }
+    public void OnChoiceOption13() { SelectAnswer(13); }
+    public void OnChoiceOption14() { SelectAnswer(14); }
+    public void OnChoiceOption15() { SelectAnswer(15); }
+    public void OnChoiceOption16() { SelectAnswer(16); }
+    public void OnChoiceOption17() { SelectAnswer(17); }
+    public void OnChoiceOption18() { SelectAnswer(18); }
+    public void OnChoiceOption19() { SelectAnswer(19); }
+    public void OnChoiceOption20() { SelectAnswer(20); }
+    public void OnChoiceOption21() { SelectAnswer(21); }
+    public void OnChoiceOption22() { SelectAnswer(22); }
+    public void OnChoiceOption23() { SelectAnswer(23); }
 
     public void OnRatingSliderChanged()
     {
@@ -2054,10 +3152,11 @@ public class SurveyManager : UdonSharpBehaviour
     public void OnSubmitTextAnswer()
     {
         string text = (inputFieldArea != null) ? inputFieldArea.text : "";
-        if (userTextAnswers != null && currentIndex < userTextAnswers.Length)
+        int actualIndex = GetActualQuestionIndex(currentIndex);
+        if (userTextAnswers != null && actualIndex >= 0 && actualIndex < userTextAnswers.Length)
         {
-            userTextAnswers[currentIndex] = text;
-            userAnswers[currentIndex] = -1;
+            userTextAnswers[actualIndex] = text;
+            userAnswers[actualIndex] = -1;
         }
 
         NextQuestion();
@@ -2224,19 +3323,28 @@ public class SurveyManager : UdonSharpBehaviour
 
         if (targetUdonBehaviour != null && !string.IsNullOrEmpty(variableName))
         {
-            object val = targetUdonBehaviour.GetProgramVariable(variableName);
-            if (val != null)
+            string[] targetNames = null;
+            if (variableName == jsonNamesVariableName)
             {
-                string[] targetNames = (string[])val;
-                if (targetNames != null && targetNames.Length > 0)
+                targetNames = GetListModeJsonNames();
+            }
+            else
+            {
+                object val = targetUdonBehaviour.GetProgramVariable(variableName);
+                if (val != null)
                 {
-                    hasTargetData = true;
-                    for (int i = 0; i < targetNames.Length; i++)
+                    targetNames = (string[])val;
+                }
+            }
+
+            if (targetNames != null && targetNames.Length > 0)
+            {
+                hasTargetData = true;
+                for (int i = 0; i < targetNames.Length; i++)
+                {
+                    if (targetNames[i] != null && targetNames[i].Trim().ToLower() == cleanName.ToLower())
                     {
-                        if (targetNames[i] != null && targetNames[i].Trim().ToLower() == cleanName.ToLower())
-                        {
-                            return true;
-                        }
+                        return true;
                     }
                 }
             }
@@ -2278,12 +3386,7 @@ public class SurveyManager : UdonSharpBehaviour
         if (type == 0)
         {
             int selectedOptIdx = (userAnswers != null && index < userAnswers.Length) ? userAnswers[index] : 0;
-            int labelOffset = index * 6 + selectedOptIdx;
-            if (optionLabels != null && labelOffset < optionLabels.Length && !string.IsNullOrEmpty(optionLabels[labelOffset]))
-            {
-                return optionLabels[labelOffset];
-            }
-            return $"選択肢{selectedOptIdx + 1}";
+            return GetOptionLabel(index, selectedOptIdx);
         }
         else if (type == 1)
         {
@@ -2321,6 +3424,17 @@ public class SurveyManager : UdonSharpBehaviour
             Transform t = transform.Find("Container_DtcConsent");
             if (t == null && transform.parent != null) t = transform.parent.Find("Container_DtcConsent");
             if (t != null) containerDtcConsent = t.gameObject;
+        }
+        if (dtcConsentTitleDisplay == null && containerDtcConsent != null)
+        {
+            Transform t = containerDtcConsent.transform.Find("DtcTitleText");
+            if (t == null) t = containerDtcConsent.transform.Find("TitleText");
+            if (t != null) dtcConsentTitleDisplay = t.GetComponent<Text>();
+        }
+        if (dtcConsentTitleDisplay != null && !string.IsNullOrEmpty(dtcConsentTitleText) && dtcConsentTitleDisplay.text != dtcConsentTitleText)
+        {
+            dtcConsentTitleDisplay.text = dtcConsentTitleText;
+            UnityEditor.EditorUtility.SetDirty(dtcConsentTitleDisplay);
         }
         if (dtcConsentNoticeDisplay == null && containerDtcConsent != null)
         {

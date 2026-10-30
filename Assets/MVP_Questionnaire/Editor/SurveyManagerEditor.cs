@@ -1,6 +1,9 @@
 using System;
+using System.IO;
+using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.Networking;
 using UnityEditor;
 using UnityEditor.Events;
 using VRC.Udon;
@@ -47,6 +50,68 @@ public class SurveyManagerEditor : Editor
         EditorGUILayout.EndVertical();
         EditorGUILayout.Space(5);
 
+        // オンラインJSON設定ボックス (VRCStringDownloader)
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("🌐 オンラインJSON読み込み設定 (VRCStringDownloader)", EditorStyles.boldLabel);
+
+        SerializedProperty useOnlineProp = serializedObject.FindProperty("useOnlineSurveyJson");
+        if (useOnlineProp != null)
+        {
+            EditorGUILayout.PropertyField(useOnlineProp, new GUIContent("オンラインJSONから質問を読み込む"));
+        }
+        else
+        {
+            manager.useOnlineSurveyJson = EditorGUILayout.Toggle("オンラインJSONから質問を読み込む", manager.useOnlineSurveyJson);
+        }
+
+        SerializedProperty urlProp = serializedObject.FindProperty("surveyJsonUrl");
+        if (urlProp != null)
+        {
+            EditorGUILayout.PropertyField(urlProp, new GUIContent("アンケートJSONのURL (VRCUrl)"), true);
+        }
+
+        EditorGUILayout.HelpBox(
+            "VRChatワールド開始時（およびリセット時）に、指定した URL (GitHub GistのRaw URL等) からJSONを自動取得して質問内容を反映します。\n" +
+            "※ 読み込み失敗時やオフライン時は、下のInspectorで設定されている質問データがフォールバックとして使用されます。",
+            MessageType.Info);
+
+        EditorGUILayout.BeginHorizontal();
+        GUI.backgroundColor = new Color(0.25f, 0.7f, 0.95f);
+        if (GUILayout.Button("📥 URLからJSONをテスト取得＆Inspectorに反映", GUILayout.Height(28)))
+        {
+            serializedObject.ApplyModifiedProperties();
+            FetchAndApplyJsonInEditor(manager);
+        }
+        GUI.backgroundColor = new Color(0.85f, 0.65f, 0.25f);
+        if (GUILayout.Button("💾 現在の質問設定をJSONに出力", GUILayout.Height(28)))
+        {
+            ExportCurrentSettingsToJsonFile(manager);
+        }
+        GUI.backgroundColor = Color.white;
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.EndVertical();
+        EditorGUILayout.Space(5);
+
+        // 出題順・ランダム並び替え設定ボックス
+        EditorGUILayout.BeginVertical("box");
+        EditorGUILayout.LabelField("🔀 出題順ランダム並び替え設定", EditorStyles.boldLabel);
+        EditorGUILayout.HelpBox(
+            "出題カテゴリの順番【選択式 → スライダー評価 → 自由記述】は維持したまま、\n" +
+            "各回答方式の質問項目ごとに一括でランダムな順番に並び替えて出題します。",
+            MessageType.None);
+
+        EditorGUI.BeginChangeCheck();
+        bool newShuffle = EditorGUILayout.ToggleLeft(" 各回答方式内の質問をランダムな順番で出題する", manager.shuffleQuestionsWithinCategory);
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(manager, "Update Question Shuffle Setting");
+            manager.shuffleQuestionsWithinCategory = newShuffle;
+            SaveAndSync(manager);
+        }
+        EditorGUILayout.EndVertical();
+        EditorGUILayout.Space(5);
+
         // 外部 UdonBehaviour / 変数設定ボックス
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("🔒 外部 UdonBehaviour 変数連携設定", EditorStyles.boldLabel);
@@ -82,22 +147,42 @@ public class SurveyManagerEditor : Editor
                 if (t != null) manager.consentNoticeDisplay = t.GetComponent<Text>();
             }
         }
-        if (manager.dtcConsentNoticeDisplay == null)
+        if (manager.dtcConsentNoticeDisplay == null || manager.dtcConsentTitleDisplay == null)
         {
             GameObject dtcObj = manager.containerDtcConsent;
             if (dtcObj == null) dtcObj = GameObject.Find("Container_DtcConsent");
             if (dtcObj != null)
             {
                 manager.containerDtcConsent = dtcObj;
-                Transform t = dtcObj.transform.Find("DtcConsentNoticeDisplay");
-                if (t == null) t = dtcObj.transform.Find("ConsentNoticeDisplay");
-                if (t != null) manager.dtcConsentNoticeDisplay = t.GetComponent<Text>();
+                if (manager.dtcConsentTitleDisplay == null)
+                {
+                    Transform tt = dtcObj.transform.Find("DtcTitleText");
+                    if (tt == null) tt = dtcObj.transform.Find("TitleText");
+                    if (tt != null) manager.dtcConsentTitleDisplay = tt.GetComponent<Text>();
+                }
+                if (manager.dtcConsentNoticeDisplay == null)
+                {
+                    Transform t = dtcObj.transform.Find("DtcConsentNoticeDisplay");
+                    if (t == null) t = dtcObj.transform.Find("ConsentNoticeDisplay");
+                    if (t != null) manager.dtcConsentNoticeDisplay = t.GetComponent<Text>();
+                }
             }
         }
 
         EditorGUILayout.Space(5);
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("📜 アンケート ワールド全員モード時の同意確認文面", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("📜 アンケート ワールド全員モード時の同意確認設定", EditorStyles.boldLabel);
+        SerializedProperty consentTitleProp = serializedObject.FindProperty("consentTitleText");
+        string currentConsentTitleVal = consentTitleProp != null ? consentTitleProp.stringValue : manager.consentTitleText;
+        EditorGUI.BeginChangeCheck();
+        string newConsentTitle = EditorGUILayout.TextField("UIパネル上部のタイトル", currentConsentTitleVal);
+        if (EditorGUI.EndChangeCheck())
+        {
+            if (consentTitleProp != null) consentTitleProp.stringValue = newConsentTitle;
+            manager.consentTitleText = newConsentTitle;
+            SaveAndSync(manager);
+        }
+
         SerializedProperty consentProp = serializedObject.FindProperty("consentNoticeText");
         string currentConsentVal = consentProp != null ? consentProp.stringValue : manager.consentNoticeText;
 
@@ -128,7 +213,30 @@ public class SurveyManagerEditor : Editor
 
         EditorGUILayout.Space(5);
         EditorGUILayout.BeginVertical("box");
-        EditorGUILayout.LabelField("📜 DTC ワールド全員モード時の同意確認文面", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("📜 DTC ワールド全員モード時の同意確認設定", EditorStyles.boldLabel);
+        SerializedProperty dtcConsentTitleProp = serializedObject.FindProperty("dtcConsentTitleText");
+        string currentDtcTitleVal = dtcConsentTitleProp != null ? dtcConsentTitleProp.stringValue : manager.dtcConsentTitleText;
+        EditorGUI.BeginChangeCheck();
+        string newDtcTitle = EditorGUILayout.TextField("UIパネル上部のタイトル", currentDtcTitleVal);
+        if (EditorGUI.EndChangeCheck())
+        {
+            if (dtcConsentTitleProp != null) dtcConsentTitleProp.stringValue = newDtcTitle;
+            manager.dtcConsentTitleText = newDtcTitle;
+            if (manager.dtcConsentTitleDisplay != null)
+            {
+                Undo.RecordObject(manager.dtcConsentTitleDisplay, "Update DTC Consent Title Display");
+                manager.dtcConsentTitleDisplay.text = newDtcTitle;
+                EditorUtility.SetDirty(manager.dtcConsentTitleDisplay);
+            }
+            SaveAndSync(manager);
+        }
+        else if (manager.dtcConsentTitleDisplay != null && !string.IsNullOrEmpty(currentDtcTitleVal) && manager.dtcConsentTitleDisplay.text != currentDtcTitleVal)
+        {
+            Undo.RecordObject(manager.dtcConsentTitleDisplay, "Auto Sync DTC Consent Title Display");
+            manager.dtcConsentTitleDisplay.text = currentDtcTitleVal;
+            EditorUtility.SetDirty(manager.dtcConsentTitleDisplay);
+        }
+
         SerializedProperty dtcConsentProp = serializedObject.FindProperty("dtcConsentNoticeText");
         string currentDtcConsentVal = dtcConsentProp != null ? dtcConsentProp.stringValue : manager.dtcConsentNoticeText;
 
@@ -160,7 +268,7 @@ public class SurveyManagerEditor : Editor
 
         // 質問数の設定
         int qCount = manager.questionTexts != null ? manager.questionTexts.Length : 0;
-        int newQCount = EditorGUILayout.DelayedIntField("アンケートの質問数", qCount);
+        int newQCount = EditorGUILayout.DelayedIntField("アンケートの質問数 (エディタ設定 / フォールバック)", qCount);
         if (newQCount != qCount && newQCount >= 0)
         {
             Undo.RecordObject(manager, "Resize Questions");
@@ -196,14 +304,20 @@ public class SurveyManagerEditor : Editor
                 if (type == 0) // 選択式
                 {
                     EditorGUI.indentLevel++;
-                    int choiceCount = EditorGUILayout.IntSlider("選択肢の数 (択数)", manager.choiceCounts[i], 2, 6);
-                    manager.choiceCounts[i] = choiceCount;
+                    int currentCount = Mathf.Max(2, manager.choiceCounts[i]);
+                    int maxSlider = Mathf.Max(24, currentCount);
+                    int choiceCount = EditorGUILayout.IntSlider("選択肢の数 (択数)", currentCount, 2, maxSlider);
+                    if (choiceCount != manager.choiceCounts[i])
+                    {
+                        manager.choiceCounts[i] = choiceCount;
+                        AutoResizeArrays(manager);
+                    }
 
-                    int labelOffset = i * 6;
+                    int labelOffset = (manager.optionOffsets != null && i < manager.optionOffsets.Length) ? manager.optionOffsets[i] : i * 6;
                     for (int c = 0; c < choiceCount; c++)
                     {
                         int labelIdx = labelOffset + c;
-                        if (labelIdx < manager.optionLabels.Length)
+                        if (manager.optionLabels != null && labelIdx < manager.optionLabels.Length)
                         {
                             manager.optionLabels[labelIdx] = EditorGUILayout.TextField($"  選択肢 {c + 1} のラベル", manager.optionLabels[labelIdx]);
                         }
@@ -264,6 +378,257 @@ public class SurveyManagerEditor : Editor
         {
             SaveAndSync(manager);
         }
+    }
+
+    private void FetchAndApplyJsonInEditor(SurveyManager manager)
+    {
+        if (manager.surveyJsonUrl == null || string.IsNullOrEmpty(manager.surveyJsonUrl.Get()))
+        {
+            EditorUtility.DisplayDialog("URL未設定", "「アンケートJSONのURL (VRCUrl)」にURLを入力してください。", "OK");
+            return;
+        }
+
+        string url = manager.surveyJsonUrl.Get().Trim();
+
+        // 1. GistのRaw URLにコミットハッシュ(/raw/<40文字ハッシュ>/file.json)が含まれている場合、
+        //    古いバージョンに固定されてしまうため自動的に最新URL(/raw/file.json)へ正規化する
+        string normalizedUrl = NormalizeGistRawUrl(url);
+        if (normalizedUrl != url)
+        {
+            SerializedProperty urlProp = serializedObject.FindProperty("surveyJsonUrl");
+            if (urlProp != null)
+            {
+                SerializedProperty strProp = urlProp.FindPropertyRelative("url");
+                if (strProp != null)
+                {
+                    strProp.stringValue = normalizedUrl;
+                    serializedObject.ApplyModifiedProperties();
+                }
+            }
+            url = normalizedUrl;
+            Debug.Log($"[SurveyManagerEditor] GistのURLから固定リビジョンIDを除去し、常に最新版を取得するURLに自動修正しました: {url}");
+        }
+
+        try
+        {
+            string jsonText = null;
+
+            // 2. GitHub Gist の場合は Raw CDNキャッシュ(最大5分遅延)を回避するため、まず GitHub Gist API から直接最新コンテンツを取得
+            jsonText = TryFetchLatestGistContentViaApi(url);
+
+            // 3. Gist以外、またはAPIから取得できなかった場合はキャッシュバスター付きで通常取得
+            if (string.IsNullOrEmpty(jsonText))
+            {
+                string sep = url.Contains("?") ? "&" : "?";
+                string requestUrl = $"{url}{sep}_t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+
+                using (UnityWebRequest req = UnityWebRequest.Get(requestUrl))
+                {
+                    req.SetRequestHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+                    req.SetRequestHeader("Pragma", "no-cache");
+                    var op = req.SendWebRequest();
+                    while (!op.isDone) { }
+
+                    if (req.result != UnityWebRequest.Result.Success)
+                    {
+                        EditorUtility.DisplayDialog("JSON取得エラー", $"URLからの取得に失敗しました:\n{req.error}\n\nURL: {url}", "OK");
+                        return;
+                    }
+
+                    jsonText = req.downloadHandler.text;
+                }
+            }
+
+            Undo.RecordObject(manager, "Import Survey JSON from URL");
+            if (manager.ApplySurveyJson(jsonText))
+            {
+                if (manager.consentNoticeDisplay != null)
+                {
+                    Undo.RecordObject(manager.consentNoticeDisplay, "Sync Consent Notice Display");
+                    manager.consentNoticeDisplay.text = manager.consentNoticeText;
+                    EditorUtility.SetDirty(manager.consentNoticeDisplay);
+                }
+                if (manager.dtcConsentTitleDisplay != null && !string.IsNullOrEmpty(manager.dtcConsentTitleText))
+                {
+                    Undo.RecordObject(manager.dtcConsentTitleDisplay, "Sync DTC Consent Title Display");
+                    manager.dtcConsentTitleDisplay.text = manager.dtcConsentTitleText;
+                    EditorUtility.SetDirty(manager.dtcConsentTitleDisplay);
+                }
+                if (manager.dtcConsentNoticeDisplay != null)
+                {
+                    Undo.RecordObject(manager.dtcConsentNoticeDisplay, "Sync DTC Consent Notice Display");
+                    manager.dtcConsentNoticeDisplay.text = manager.dtcConsentNoticeText;
+                    EditorUtility.SetDirty(manager.dtcConsentNoticeDisplay);
+                }
+
+                serializedObject.Update();
+                SaveAndSync(manager);
+                int count = manager.questionTexts != null ? manager.questionTexts.Length : 0;
+                EditorUtility.DisplayDialog("JSON反映成功", $"オンラインJSONから全 {count} 問のアンケート設定と同意確認文面を即時取得し、Inspectorに反映しました！", "OK");
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("JSON解析エラー", "JSONの解析に失敗しました。フォーマットを確認してください。", "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            EditorUtility.DisplayDialog("例外発生", $"JSON取得中にエラーが発生しました:\n{ex.Message}", "OK");
+        }
+    }
+
+    /// <summary>
+    /// https://gist.githubusercontent.com/{user}/{gistId}/raw/{commitHash}/{fileName}
+    /// の {commitHash}/ を除去して常に最新リビジョンを指すURLに変換する
+    /// </summary>
+    private string NormalizeGistRawUrl(string url)
+    {
+        if (string.IsNullOrEmpty(url)) return url;
+        var match = System.Text.RegularExpressions.Regex.Match(
+            url,
+            @"^(https://gist\.githubusercontent\.com/[^/]+/[0-9a-fA-F]+/raw/)[0-9a-fA-F]{20,40}/(.+)$"
+        );
+        if (match.Success)
+        {
+            return match.Groups[1].Value + match.Groups[2].Value;
+        }
+        return url;
+    }
+
+    /// <summary>
+    /// GitHub Gist の Raw URL から Gist ID とファイル名を抽出し、
+    /// CDNキャッシュを経由しない GitHub API (https://api.github.com/gists/{gistId}) から最新のファイル内容を直接取得する
+    /// </summary>
+    private string TryFetchLatestGistContentViaApi(string rawUrl)
+    {
+        if (string.IsNullOrEmpty(rawUrl)) return null;
+        var match = System.Text.RegularExpressions.Regex.Match(
+            rawUrl,
+            @"^https://gist\.githubusercontent\.com/[^/]+/([0-9a-fA-F]+)/raw/(?:[0-9a-fA-F]+/)?([^?#]+)"
+        );
+        if (!match.Success) return null;
+
+        string gistId = match.Groups[1].Value;
+        string fileName = Uri.UnescapeDataString(match.Groups[2].Value);
+        string apiUrl = $"https://api.github.com/gists/{gistId}?_t={DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}";
+
+        try
+        {
+            using (UnityWebRequest req = UnityWebRequest.Get(apiUrl))
+            {
+                req.SetRequestHeader("User-Agent", "Unity-SurveyManagerEditor");
+                req.SetRequestHeader("Accept", "application/vnd.github.v3+json");
+                req.SetRequestHeader("Cache-Control", "no-cache");
+                var op = req.SendWebRequest();
+                while (!op.isDone) { }
+
+                if (req.result != UnityWebRequest.Result.Success) return null;
+
+                string apiJson = req.downloadHandler.text;
+                if (VRC.SDK3.Data.VRCJson.TryDeserializeFromJson(apiJson, out VRC.SDK3.Data.DataToken rootToken) &&
+                    rootToken.TokenType == VRC.SDK3.Data.TokenType.DataDictionary)
+                {
+                    var rootDict = rootToken.DataDictionary;
+                    if (rootDict.TryGetValue("files", out VRC.SDK3.Data.DataToken filesToken) &&
+                        filesToken.TokenType == VRC.SDK3.Data.TokenType.DataDictionary)
+                    {
+                        var filesDict = filesToken.DataDictionary;
+                        if (filesDict.TryGetValue(fileName, out VRC.SDK3.Data.DataToken fileObjToken) &&
+                            fileObjToken.TokenType == VRC.SDK3.Data.TokenType.DataDictionary)
+                        {
+                            var fileObj = fileObjToken.DataDictionary;
+                            if (fileObj.TryGetValue("content", out VRC.SDK3.Data.DataToken contentToken) &&
+                                contentToken.TokenType == VRC.SDK3.Data.TokenType.String)
+                            {
+                                Debug.Log($"[SurveyManagerEditor] GitHub Gist API からキャッシュなしで最新の '{fileName}' を直接取得しました。");
+                                return contentToken.String;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Debug.LogWarning($"[SurveyManagerEditor] Gist API 経由の取得に失敗したため通常取得へフォールバックします: {e.Message}");
+        }
+        return null;
+    }
+
+    private void ExportCurrentSettingsToJsonFile(SurveyManager manager)
+    {
+        AutoResizeArrays(manager);
+
+        string path = EditorUtility.SaveFilePanel("アンケートJSONの保存", Application.dataPath, "survey_questions.json", "json");
+        if (string.IsNullOrEmpty(path)) return;
+
+        StringBuilder sb = new StringBuilder();
+        sb.AppendLine("{");
+        sb.AppendLine($"  \"consentTitleText\": {EscapeJsonString(manager.consentTitleText)},");
+        sb.AppendLine($"  \"consentNoticeText\": {EscapeJsonString(manager.consentNoticeText)},");
+        sb.AppendLine($"  \"dtcConsentTitleText\": {EscapeJsonString(manager.dtcConsentTitleText)},");
+        sb.AppendLine($"  \"dtcConsentNoticeText\": {EscapeJsonString(manager.dtcConsentNoticeText)},");
+        sb.AppendLine("  \"questions\": [");
+
+        int qCount = manager.questionTexts != null ? manager.questionTexts.Length : 0;
+        for (int i = 0; i < qCount; i++)
+        {
+            string qText = manager.questionTexts[i] ?? "";
+            int type = (manager.answerTypes != null && i < manager.answerTypes.Length) ? manager.answerTypes[i] : 0;
+            sb.AppendLine("    {");
+            sb.AppendLine($"      \"question\": {EscapeJsonString(qText)},");
+
+            if (type == 0)
+            {
+                sb.AppendLine("      \"type\": 0,");
+                int cCount = (manager.choiceCounts != null && i < manager.choiceCounts.Length) ? Mathf.Max(2, manager.choiceCounts[i]) : 2;
+                int labelOffset = (manager.optionOffsets != null && i < manager.optionOffsets.Length) ? manager.optionOffsets[i] : i * 6;
+                sb.Append("      \"options\": [");
+                for (int c = 0; c < cCount; c++)
+                {
+                    int idx = labelOffset + c;
+                    string opt = (manager.optionLabels != null && idx < manager.optionLabels.Length && manager.optionLabels[idx] != null)
+                        ? manager.optionLabels[idx]
+                        : $"選択肢 {c + 1}";
+                    if (c > 0) sb.Append(", ");
+                    sb.Append(EscapeJsonString(opt));
+                }
+                sb.AppendLine("]");
+            }
+            else if (type == 1)
+            {
+                int maxVal = (manager.sliderMaxValues != null && i < manager.sliderMaxValues.Length) ? manager.sliderMaxValues[i] : 5;
+                sb.AppendLine("      \"type\": 1,");
+                sb.AppendLine($"      \"sliderMax\": {maxVal}");
+            }
+            else
+            {
+                sb.AppendLine("      \"type\": 2");
+            }
+
+            sb.Append("    }");
+            if (i < qCount - 1) sb.AppendLine(",");
+            else sb.AppendLine();
+        }
+
+        sb.AppendLine("  ]");
+        sb.AppendLine("}");
+
+        File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+        Debug.Log($"[SurveyManagerEditor] アンケート設定JSONを出力しました: {path}");
+        EditorUtility.DisplayDialog("JSON出力完了", $"現在のアンケート設定を以下のファイルに出力しました:\n{path}", "OK");
+    }
+
+    private string EscapeJsonString(string str)
+    {
+        if (str == null) return "\"\"";
+        return "\"" + str
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\r\n", "\\n")
+            .Replace("\n", "\\n")
+            .Replace("\r", "\\n")
+            .Replace("\t", "\\t") + "\"";
     }
 
     private void SaveAndSync(SurveyManager manager)
@@ -452,8 +817,8 @@ public class SurveyManagerEditor : Editor
         manager.titleText = null;
         manager.questionText = null;
         manager.containerChoice = null;
-        manager.choiceButtons = new GameObject[6];
-        manager.choiceButtonTexts = new Text[6];
+        manager.choiceButtons = new GameObject[24];
+        manager.choiceButtonTexts = new Text[24];
         manager.containerRating = null;
         manager.ratingSlider = null;
         manager.ratingValueText = null;
@@ -464,6 +829,7 @@ public class SurveyManagerEditor : Editor
         manager.consentAgreeButton = null;
         manager.consentDisagreeButton = null;
         manager.containerDtcConsent = null;
+        manager.dtcConsentTitleDisplay = null;
         manager.dtcConsentNoticeDisplay = null;
         manager.dtcConsentAgreeButton = null;
         manager.dtcConsentDisagreeButton = null;
@@ -506,23 +872,20 @@ public class SurveyManagerEditor : Editor
         Transform cTr = cObj.transform;
         RectTransform cRt = cObj.GetComponent<RectTransform>();
         cRt.anchoredPosition = new Vector2(0, -70);
-        cRt.sizeDelta = new Vector2(850, 260);
+        cRt.sizeDelta = new Vector2(920, 300);
         manager.containerChoice = cObj;
 
-        manager.choiceButtons = new GameObject[6];
-        manager.choiceButtonTexts = new Text[6];
-        Vector2[] btnPositions = new Vector2[] {
-            new Vector2(-220, 70),  new Vector2(220, 70),
-            new Vector2(-220, 0),   new Vector2(220, 0),
-            new Vector2(-220, -70), new Vector2(220, -70)
-        };
-        string[] choiceEvents = new string[] {
-            "OnChoiceOption0", "OnChoiceOption1", "OnChoiceOption2",
-            "OnChoiceOption3", "OnChoiceOption4", "OnChoiceOption5"
-        };
-        for (int i = 0; i < 6; i++)
+        int maxChoiceButtons = 24;
+        manager.choiceButtons = new GameObject[maxChoiceButtons];
+        manager.choiceButtonTexts = new Text[maxChoiceButtons];
+        for (int i = 0; i < maxChoiceButtons; i++)
         {
-            GameObject bObj = CreateButtonWithEvent(cTr, $"Btn_Choice{i}", $"選択肢 {i + 1}", font, btnPositions[i], new Vector2(400, 60), 24, manager, choiceEvents[i]);
+            int col = i % 2;
+            int row = i / 2;
+            Vector2 defaultPos = new Vector2(col == 0 ? -220f : 220f, 70f - row * 70f);
+            string eventName = $"OnChoiceOption{i}";
+            GameObject bObj = CreateButtonWithEvent(cTr, $"Btn_Choice{i}", $"選択肢 {i + 1}", font, defaultPos, new Vector2(400, 60), 24, manager, eventName);
+            if (i >= 6) bObj.SetActive(false);
             manager.choiceButtons[i] = bObj;
             manager.choiceButtonTexts[i] = bObj.GetComponentInChildren<Text>();
         }
@@ -673,7 +1036,8 @@ public class SurveyManagerEditor : Editor
         manager.containerDtcConsent = dtcConsentObj;
         Transform dtcConsentTr = dtcConsentObj.transform;
 
-        CreateOrGetText(dtcConsentTr, "DtcTitleText", "【位置・視線データ収集に関する同意確認】", font, 36, TextAnchor.MiddleCenter, new Vector2(0, 210), new Vector2(920, 60));
+        string dtcTitleVal = !string.IsNullOrEmpty(manager.dtcConsentTitleText) ? manager.dtcConsentTitleText : "【位置・視線データ収集に関する同意確認】";
+        manager.dtcConsentTitleDisplay = CreateOrGetText(dtcConsentTr, "DtcTitleText", dtcTitleVal, font, 36, TextAnchor.MiddleCenter, new Vector2(0, 210), new Vector2(920, 60));
 
         Text dtcNoticeText = CreateOrGetText(dtcConsentTr, "DtcConsentNoticeDisplay", manager.dtcConsentNoticeText, font, 24, TextAnchor.MiddleCenter, new Vector2(0, 45), new Vector2(900, 220));
         dtcNoticeText.horizontalOverflow = HorizontalWrapMode.Wrap;
@@ -934,7 +1298,6 @@ public class SurveyManagerEditor : Editor
         if (manager.questionTexts == null) return;
         int qCount = manager.questionTexts.Length;
 
-        int oldAnsLen = (manager.answerTypes != null) ? manager.answerTypes.Length : 0;
         Array.Resize(ref manager.answerTypes, qCount);
 
         int oldChoiceLen = (manager.choiceCounts != null) ? manager.choiceCounts.Length : 0;
@@ -951,8 +1314,40 @@ public class SurveyManagerEditor : Editor
             if (manager.sliderMaxValues[i] == 0) manager.sliderMaxValues[i] = 5;
         }
 
-        int targetOptionLen = qCount * 6;
-        Array.Resize(ref manager.optionLabels, targetOptionLen);
+        // 各質問の開始オフセットを計算し、既存のラベルデータを保持しつつ optionLabels を再構築
+        int[] oldOffsets = manager.optionOffsets;
+        string[] oldLabels = manager.optionLabels;
+
+        int[] newOffsets = new int[qCount];
+        int totalNeeded = 0;
+        for (int i = 0; i < qCount; i++)
+        {
+            newOffsets[i] = totalNeeded;
+            int slotCount = Mathf.Max(6, manager.choiceCounts[i]);
+            totalNeeded += slotCount;
+        }
+
+        string[] newLabels = new string[totalNeeded];
+        for (int i = 0; i < qCount; i++)
+        {
+            int slotCount = Mathf.Max(6, manager.choiceCounts[i]);
+            int oldBase = (oldOffsets != null && i < oldOffsets.Length) ? oldOffsets[i] : (i * 6);
+            int nextOldBase = (oldOffsets != null && i + 1 < oldOffsets.Length) ? oldOffsets[i + 1] : ((i + 1) * 6);
+            int oldSlotCount = Mathf.Max(0, nextOldBase - oldBase);
+
+            for (int c = 0; c < slotCount; c++)
+            {
+                int newIdx = newOffsets[i] + c;
+                int oldIdx = oldBase + c;
+                if (oldLabels != null && c < oldSlotCount && oldIdx >= 0 && oldIdx < oldLabels.Length)
+                {
+                    newLabels[newIdx] = oldLabels[oldIdx];
+                }
+            }
+        }
+
+        manager.optionOffsets = newOffsets;
+        manager.optionLabels = newLabels;
     }
 
     private Text CreateOrGetText(Transform parent, string name, string defaultText, Font font, int fontSize, TextAnchor alignment, Vector2 pos, Vector2 size)
