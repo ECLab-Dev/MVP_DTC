@@ -2087,7 +2087,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!114 &9006570966118655814
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2127,6 +2127,9 @@ MonoBehaviour:
     PrefabModifications: []
     SerializationNodes: []
   _udonSharpBackingUdonBehaviour: {fileID: 6833947712931016951}
+  useOnlineSurveyJson: 1
+  surveyJsonUrl:
+    url: 
   questionTexts:
   - "\u30A4\u30D9\u30F3\u30C8\u306F\u697D\u3057\u3081\u307E\u3057\u305F\u304B\uFF1F"
   - "\u4F7F\u7528\u3057\u3066\u3044\u308B\u30D7\u30E9\u30C3\u30C8\u30D5\u30A9\u30FC\u30E0\u306F\uFF1F"
@@ -2134,6 +2137,7 @@ MonoBehaviour:
   - "\u3054\u610F\u898B\u30FB\u3054\u611F\u60F3\u3092\u81EA\u7531\u306B\u3054\u8A18\u8FF0\u304F\u3060\u3055\u3044"
   answerTypes: 00000000000000000100000002000000
   choiceCounts: 02000000040000000000000000000000
+  optionOffsets: 00000000060000000c00000012000000
   optionLabels:
   - "\u3044\u3044\u3048"
   - "\u306F\u3044"
@@ -2160,11 +2164,62 @@ MonoBehaviour:
   - 
   - 
   sliderMaxValues: 05000000050000000500000005000000
+  gridRowCounts: 00000000000000000000000000000000
+  gridRowOffsets: 0000000004000000080000000c000000
+  gridRowLabels:
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  gridColCounts: 00000000000000000000000000000000
+  gridColOffsets: 00000000060000000c00000012000000
+  gridColLabels:
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  choiceCategoryDescription: 
+  gridCategoryDescription: 
+  sliderCategoryDescription: 
+  textCategoryDescription: 
   targetUdonBehaviour: {fileID: 0}
   jsonNamesVariableName: JsonNamesString
   recordMasterVariableName: RecordMasterNames
   allowedUserNames: []
   titleText: {fileID: 0}
+  categoryDescriptionText: {fileID: 0}
   questionText: {fileID: 0}
   containerChoice: {fileID: 0}
   choiceButtons: []
@@ -2174,11 +2229,33 @@ MonoBehaviour:
   ratingValueText: {fileID: 0}
   containerTextInput: {fileID: 0}
   inputFieldArea: {fileID: 0}
-  containerConsent: {fileID: 0}
-  consentNoticeDisplay: {fileID: 0}
+  containerGrid: {fileID: 0}
+  gridScrollRect: {fileID: 0}
+  gridScrollContent: {fileID: 0}
+  gridCornerHeaderText: {fileID: 0}
+  gridColHeaderTexts: []
+  gridRowObjects: []
+  gridRowBgImages: []
+  gridRowLabelTexts: []
+  gridCellButtons: []
+  gridCellButtonImages: []
+  gridCellButtonTexts: []
+  gridSubmitButton: {fileID: 0}
+  gridSubmitButtonImage: {fileID: 0}
+  gridSubmitButtonText: {fileID: 0}
+  containerConsent: {fileID: 4671569797635291393}
+  consentNoticeDisplay: {fileID: 6986890510198295798}
   consentAgreeButton: {fileID: 0}
   consentDisagreeButton: {fileID: 0}
+  consentTitleText: "\u30A2\u30F3\u30B1\u30FC\u30C8\u53C2\u52A0\u306E\u540C\u610F\u78BA\u8A8D"
   consentNoticeText: "\u3010\u30A2\u30F3\u30B1\u30FC\u30C8\u53C2\u52A0\u30FB\u30C7\u30FC\u30BF\u53CE\u96C6\u306B\u95A2\u3059\u308B\u540C\u610F\u78BA\u8A8D\u3011\n\n\u672C\u30A2\u30F3\u30B1\u30FC\u30C8\u306E\u56DE\u7B54\u30C7\u30FC\u30BF\u306F\u7D71\u8A08\u30FB\u5831\u544A\u76EE\u7684\u306E\u307F\u306B\u4F7F\u7528\u3055\u308C\u307E\u3059\u3002\n\u5185\u5BB9\u306B\u540C\u610F\u3044\u305F\u3060\u3051\u308B\u65B9\u306F\u300C\u540C\u610F\u3059\u308B\u300D\u3092\u62BC\u3057\u3066\u30A2\u30F3\u30B1\u30FC\u30C8\u3078\u304A\u9032\u307F\u304F\u3060\u3055\u3044\u3002\n\u300C\u540C\u610F\u3057\u306A\u3044\u300D\u3092\u62BC\u3057\u305F\u5834\u5408\u306F\u3001\u30A2\u30F3\u30B1\u30FC\u30C8\u306B\u56DE\u7B54\u305B\u305A\u7D42\u4E86\u3057\u307E\u3059\u3002"
+  containerDtcConsent: {fileID: 0}
+  dtcConsentTitleDisplay: {fileID: 0}
+  dtcConsentNoticeDisplay: {fileID: 0}
+  dtcConsentAgreeButton: {fileID: 0}
+  dtcConsentDisagreeButton: {fileID: 0}
+  dtcConsentTitleText: "\u3010\u4F4D\u7F6E\u30FB\u8996\u7DDA\u30C7\u30FC\u30BF\u53CE\u96C6\u306B\u95A2\u3059\u308B\u540C\u610F\u78BA\u8A8D\u3011"
+  dtcConsentNoticeText: "\u3010\u4F4D\u7F6E\u30FB\u8996\u7DDA\u30C7\u30FC\u30BF\u53CE\u96C6\u306B\u95A2\u3059\u308B\u540C\u610F\u78BA\u8A8D\u3011\n\n\u672C\u30EF\u30FC\u30EB\u30C9\u3067\u306F\u7814\u7A76\u30FB\u7D71\u8A08\u5206\u6790\u3092\u76EE\u7684\u3068\u3057\u3066\u3001\u30D7\u30EC\u30A4\u30E4\u30FC\u306E\u4F4D\u7F6E\u304A\u3088\u3073\u982D\u90E8\u59FF\u52E2\u30C7\u30FC\u30BF\u3092\u8A18\u9332\u3059\u308B\u6A5F\u80FD\u304C\u3042\u308A\u307E\u3059\u3002\n\u30C7\u30FC\u30BF\u53CE\u96C6\u306B\u3054\u540C\u610F\u3044\u305F\u3060\u3051\u308B\u65B9\u306F\u300C\u540C\u610F\u3059\u308B\u300D\u3092\u62BC\u3057\u3066\u304F\u3060\u3055\u3044\u3002"
   surveyPanel: {fileID: 0}
   resultPanel: {fileID: 0}
   resultMessageText: {fileID: 0}
@@ -2191,6 +2268,8 @@ MonoBehaviour:
   toggleTargetModeButton: {fileID: 0}
   targetModeListButton: {fileID: 0}
   targetModeAllButton: {fileID: 0}
+  initialTargetMode: 0
+  shuffleQuestionsWithinCategory: 0
 --- !u!114 &6833947712931016951
 MonoBehaviour:
   m_ObjectHideFlags: 0

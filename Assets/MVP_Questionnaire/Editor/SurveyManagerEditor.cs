@@ -21,6 +21,7 @@ public class SurveyManagerEditor : Editor
         SurveyManager manager = (SurveyManager)target;
 
         AutoResizeArrays(manager);
+        AutoResolveTargetUdonBehaviour(manager);
 
         EditorGUILayout.Space(10);
         EditorGUILayout.HelpBox("【配信対象モード】\n・リスト限定: JsonNamesString の名簿プレイヤーのみを対象\n・ワールド全員: RecordMaster を除くインスタンス全員を対象 (初回に同意確認画面を表示)", MessageType.Info);
@@ -36,8 +37,9 @@ public class SurveyManagerEditor : Editor
         int newMode = EditorGUILayout.Popup("ワールド開始時の初期モード", manager.initialTargetMode, initialModeOptions);
         if (newMode != manager.initialTargetMode)
         {
+            Undo.RecordObject(manager, "Change Initial Target Mode");
             manager.initialTargetMode = newMode;
-            EditorUtility.SetDirty(manager);
+            SaveAndSync(manager);
         }
         if (manager.initialTargetMode == 1)
         {
@@ -115,10 +117,24 @@ public class SurveyManagerEditor : Editor
         // 外部 UdonBehaviour / 変数設定ボックス
         EditorGUILayout.BeginVertical("box");
         EditorGUILayout.LabelField("🔒 外部 UdonBehaviour 変数連携設定", EditorStyles.boldLabel);
-        manager.targetUdonBehaviour = (UdonBehaviour)EditorGUILayout.ObjectField("外部 UdonBehaviour 参照", manager.targetUdonBehaviour, typeof(UdonBehaviour), true);
-
-        manager.jsonNamesVariableName = EditorGUILayout.TextField("アンケート出現対象の変数名", manager.jsonNamesVariableName);
-        manager.recordMasterVariableName = EditorGUILayout.TextField("RecordMaster(開始権限&ログ)変数名", manager.recordMasterVariableName);
+        EditorGUI.BeginChangeCheck();
+        UdonBehaviour newTargetUdon = (UdonBehaviour)EditorGUILayout.ObjectField("外部 UdonBehaviour 参照", manager.targetUdonBehaviour, typeof(UdonBehaviour), true);
+        string newJsonVar = EditorGUILayout.TextField("アンケート出現対象の変数名", manager.jsonNamesVariableName);
+        string newMasterVar = EditorGUILayout.TextField("RecordMaster(開始権限&ログ)変数名", manager.recordMasterVariableName);
+        if (EditorGUI.EndChangeCheck())
+        {
+            Undo.RecordObject(manager, "Update External UdonBehaviour Settings");
+            manager.targetUdonBehaviour = newTargetUdon;
+            manager.jsonNamesVariableName = newJsonVar;
+            manager.recordMasterVariableName = newMasterVar;
+            SerializedProperty targetUdonProp = serializedObject.FindProperty("targetUdonBehaviour");
+            if (targetUdonProp != null) targetUdonProp.objectReferenceValue = newTargetUdon;
+            SerializedProperty jsonVarProp = serializedObject.FindProperty("jsonNamesVariableName");
+            if (jsonVarProp != null) jsonVarProp.stringValue = newJsonVar;
+            SerializedProperty masterVarProp = serializedObject.FindProperty("recordMasterVariableName");
+            if (masterVarProp != null) masterVarProp.stringValue = newMasterVar;
+            SaveAndSync(manager);
+        }
 
         EditorGUILayout.HelpBox("外部参照を使わずエディターで直接テストする場合は、下の「Allowed User Names」に DisplayName を指定してください。", MessageType.None);
 
@@ -296,11 +312,7 @@ public class SurveyManagerEditor : Editor
             Undo.RecordObject(manager, "Resize Questions");
             Array.Resize(ref manager.questionTexts, newQCount);
             AutoResizeArrays(manager);
-            EditorUtility.SetDirty(manager);
-            if (manager.gameObject.scene.IsValid())
-            {
-                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
-            }
+            SaveAndSync(manager);
         }
 
         EditorGUILayout.Space(10);
@@ -447,11 +459,7 @@ public class SurveyManagerEditor : Editor
             }
             if (EditorGUI.EndChangeCheck())
             {
-                EditorUtility.SetDirty(manager);
-                if (manager.gameObject.scene.IsValid())
-                {
-                    UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
-                }
+                SaveAndSync(manager);
             }
         }
 
@@ -789,6 +797,13 @@ public class SurveyManagerEditor : Editor
         catch (Exception e)
         {
             Debug.LogWarning($"[SurveyManagerEditor] CopyProxyToUdon error: {e.Message}");
+        }
+        UdonBehaviour backing = UdonSharpEditorUtility.GetBackingUdonBehaviour(manager);
+        if (backing == null) backing = manager.GetComponent<UdonBehaviour>();
+        if (backing != null)
+        {
+            EditorUtility.SetDirty(backing);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(backing);
         }
         PrefabUtility.RecordPrefabInstancePropertyModifications(manager);
         if (manager.gameObject.scene.IsValid())
@@ -1513,6 +1528,7 @@ public class SurveyManagerEditor : Editor
         EditorUtility.SetDirty(manager);
         serializedObject.Update();
         serializedObject.ApplyModifiedProperties();
+        SaveAndSync(manager);
 
         Debug.Log($"★ [SurveyManager] 親Canvasの余分な背景Imageを除去し、完全シリアライズ保存されたUIセットアップが完了しました！");
     }
@@ -1531,6 +1547,107 @@ public class SurveyManagerEditor : Editor
         }
     }
 
+    /// <summary>
+    /// シーン内の MVP_DTC_Online (DatacollectionJson) を自動検索して targetUdonBehaviour に設定し、
+    /// UdonSharp のバッキング UdonBehaviour へ確実に同期する（Play開始時に参照が外れる現象を防止）
+    /// </summary>
+    public static bool AutoResolveTargetUdonBehaviour(SurveyManager manager)
+    {
+        if (manager == null) return false;
+        if (!manager.gameObject.scene.IsValid()) return false;
+
+        bool changed = false;
+
+        if (manager.targetUdonBehaviour == null)
+        {
+            UdonBehaviour[] allUdons = UnityEngine.Object.FindObjectsOfType<UdonBehaviour>(true);
+            UdonBehaviour selfUdon = manager.GetComponent<UdonBehaviour>();
+            UdonBehaviour foundDtc = null;
+
+            if (allUdons != null)
+            {
+                // 1. GameObject 名が MVP_DTC_Online で始まるものを最優先
+                for (int i = 0; i < allUdons.Length; i++)
+                {
+                    UdonBehaviour u = allUdons[i];
+                    if (u == null || u == selfUdon) continue;
+                    if (!u.gameObject.scene.IsValid()) continue;
+                    if (u.gameObject.name.StartsWith("MVP_DTC_Online", StringComparison.OrdinalIgnoreCase))
+                    {
+                        foundDtc = u;
+                        break;
+                    }
+                }
+
+                // 2. ProgramSource 名に DatacollectionJson を含むものを検索
+                if (foundDtc == null)
+                {
+                    for (int i = 0; i < allUdons.Length; i++)
+                    {
+                        UdonBehaviour u = allUdons[i];
+                        if (u == null || u == selfUdon) continue;
+                        if (!u.gameObject.scene.IsValid()) continue;
+                        if (u.programSource != null && u.programSource.name.IndexOf("DatacollectionJson", StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            foundDtc = u;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (foundDtc != null)
+            {
+                manager.targetUdonBehaviour = foundDtc;
+                changed = true;
+                Debug.Log($"[SurveyManagerEditor] シーン内の '{foundDtc.gameObject.name}' を外部 UdonBehaviour 参照に自動設定しました。");
+            }
+        }
+
+        if (manager.targetUdonBehaviour != null)
+        {
+            try
+            {
+                UdonSharpEditorUtility.CopyProxyToUdon(manager);
+            }
+            catch { }
+
+            UdonBehaviour backing = UdonSharpEditorUtility.GetBackingUdonBehaviour(manager);
+            if (backing == null) backing = manager.GetComponent<UdonBehaviour>();
+            if (backing != null)
+            {
+                PrefabUtility.RecordPrefabInstancePropertyModifications(backing);
+                if (changed) EditorUtility.SetDirty(backing);
+            }
+            PrefabUtility.RecordPrefabInstancePropertyModifications(manager);
+        }
+
+        if (changed)
+        {
+            EditorUtility.SetDirty(manager);
+            if (manager.gameObject.scene.IsValid())
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(manager.gameObject.scene);
+            }
+        }
+
+        return changed;
+    }
+
+    private static void SyncAllSurveyManagersInScene()
+    {
+        if (EditorApplication.isPlayingOrWillChangePlaymode && EditorApplication.isPlaying) return;
+        SurveyManager[] managers = UnityEngine.Object.FindObjectsOfType<SurveyManager>(true);
+        if (managers == null) return;
+        for (int i = 0; i < managers.Length; i++)
+        {
+            if (managers[i] != null && managers[i].gameObject.scene.IsValid())
+            {
+                AutoResolveTargetUdonBehaviour(managers[i]);
+            }
+        }
+    }
+
     [InitializeOnLoadMethod]
     private static void OnEditorLoad()
     {
@@ -1539,7 +1656,24 @@ public class SurveyManagerEditor : Editor
             SurveyManager manager = UnityEngine.Object.FindObjectOfType<SurveyManager>();
             if (manager != null)
             {
+                AutoResolveTargetUdonBehaviour(manager);
                 FixCollidersStatic(manager);
+            }
+        };
+
+        EditorApplication.hierarchyChanged += () =>
+        {
+            if (!EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                SyncAllSurveyManagersInScene();
+            }
+        };
+
+        EditorApplication.playModeStateChanged += (PlayModeStateChange state) =>
+        {
+            if (state == PlayModeStateChange.ExitingEditMode)
+            {
+                SyncAllSurveyManagersInScene();
             }
         };
     }
@@ -1552,6 +1686,8 @@ public class SurveyManagerEditor : Editor
     public static void FixCollidersStatic(SurveyManager manager)
     {
         if (manager == null) return;
+
+        AutoResolveTargetUdonBehaviour(manager);
 
         int count = 0;
         Collider[] colliders = manager.GetComponentsInChildren<Collider>(true);
