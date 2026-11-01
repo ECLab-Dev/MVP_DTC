@@ -218,6 +218,9 @@ public class SurveyManager : UdonSharpBehaviour
     private int lastAppliedModeState = -1; // -1: 未適用, 0: リスト限定, 1: ワールド全員
     private string[] lastBuiltListModePlayerNames = null;
     private string[] lastBuiltListModeMasterNames = null;
+    private string[] lastObservedMasterNamesForEvents = null;
+    private string[] lastObservedPlayerNamesForEvents = null;
+    private bool hasRevivedDtcLoopEvent = false;
 
     // オンラインJSON読み込み状態管理
     private bool isOnlineJsonLoaded = false;
@@ -242,8 +245,20 @@ public class SurveyManager : UdonSharpBehaviour
         SyncDtcTargetsToUdonBehaviour();
 
         // ワールド開始時にオンラインJSONからアンケート設定を読み込む
+        // ※ MVP_DTC_Online 側の VRCStringDownloader.LoadUrl (VRCanswers.json) と
+        //   VRChat の 5秒レート制限キューで競合しないよう、Hierarchy 内の Prefab 配置順に関わらず
+        //   アンケート設定JSONの初回読み込みを 5.5 秒後に遅延実行する
         jsonLoadRetryCount = 0;
-        LoadSurveyJsonFromUrl();
+        if (useOnlineSurveyJson && surveyJsonUrl != null && !string.IsNullOrEmpty(surveyJsonUrl.Get()))
+        {
+            onlineJsonStatusMessage = "<color=#70D6FF>⏳ オンラインJSON読込待機中...</color>";
+            UpdateMasterStatusText();
+            SendCustomEventDelayedSeconds(nameof(LoadSurveyJsonFromUrl), 5.5f);
+        }
+        else
+        {
+            LoadSurveyJsonFromUrl();
+        }
 
         CheckIfAlreadyAnswered();
 
@@ -285,14 +300,23 @@ public class SurveyManager : UdonSharpBehaviour
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 1.0f);
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 3.0f);
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 5.0f);
+        SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 6.0f);
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 10.0f);
+        SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 15.0f);
+
+        SendCustomEventDelayedSeconds(nameof(EnsureDtcLoopEventRunning), 1.8f);
+        SendCustomEventDelayedSeconds(nameof(EnsureDtcLoopEventRunning), 3.5f);
+        SendCustomEventDelayedSeconds(nameof(EnsureDtcLoopEventRunning), 6.0f);
+        SendCustomEventDelayedSeconds(nameof(EnsureDtcLoopEventRunning), 10.5f);
 
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 0.5f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 1.5f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 3.5f);
+        SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 6.0f);
 
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 0.6f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 1.6f);
+        SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 6.0f);
     }
 
     void Update()
@@ -945,12 +969,15 @@ public class SurveyManager : UdonSharpBehaviour
     public override void OnPlayerJoined(VRCPlayerApi player)
     {
         EnsureUIReferences();
+        lastAppliedModeState = -1;
+        SyncDtcTargetsToUdonBehaviour();
         RefreshMasterPanelVisibility();
         CheckAndRestoreSurveyForLocalUser();
         CheckAndRestoreDtcConsentForLocalUser();
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 0.5f);
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 2.0f);
         SendCustomEventDelayedSeconds(nameof(RefreshMasterPanelVisibility), 5.0f);
+        SendCustomEventDelayedSeconds(nameof(EnsureDtcLoopEventRunning), 1.8f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 1.0f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreSurveyForLocalUser), 3.0f);
         SendCustomEventDelayedSeconds(nameof(CheckAndRestoreDtcConsentForLocalUser), 1.2f);
@@ -1748,6 +1775,62 @@ public class SurveyManager : UdonSharpBehaviour
     }
 
     /// <summary>
+    /// 全角/半角の括弧・スペース・大文字小文字の違いを吸収してプレイヤー名を比較用に正規化する
+    /// </summary>
+    private string NormalizePlayerNameForMatch(string name)
+    {
+        if (string.IsNullOrEmpty(name)) return "";
+        string s = name.Trim()
+            .Replace('（', '(')
+            .Replace('）', ')')
+            .Replace('　', ' ');
+        while (s.IndexOf(" (") >= 0) s = s.Replace(" (", "(");
+        while (s.IndexOf("( ") >= 0) s = s.Replace("( ", "(");
+        while (s.IndexOf(" )") >= 0) s = s.Replace(" )", ")");
+        while (s.IndexOf(") ") >= 0) s = s.Replace(") ", ")");
+        return s.Trim().ToLower();
+    }
+
+    /// <summary>
+    /// JSON上のプレイヤー名がインスタンス内の実プレイヤーと括弧・大文字小文字違い等で一致する場合、
+    /// MVP_DTC_Online 側の完全一致 (==) でも一致するよう実プレイヤーの displayName に解決する
+    /// </summary>
+    private string ResolveActualPlayerDisplayName(string rawName)
+    {
+        if (string.IsNullOrEmpty(rawName)) return "";
+        string trimmed = rawName.Trim();
+        string normTarget = NormalizePlayerNameForMatch(trimmed);
+        if (string.IsNullOrEmpty(normTarget)) return trimmed;
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        if (localPlayer != null && localPlayer.IsValid() && !string.IsNullOrEmpty(localPlayer.displayName))
+        {
+            if (NormalizePlayerNameForMatch(localPlayer.displayName) == normTarget)
+            {
+                return localPlayer.displayName;
+            }
+
+            int pCount = VRCPlayerApi.GetPlayerCount();
+            if (pCount > 0)
+            {
+                VRCPlayerApi[] players = new VRCPlayerApi[pCount];
+                VRCPlayerApi.GetPlayers(players);
+                for (int i = 0; i < players.Length; i++)
+                {
+                    if (players[i] != null && players[i].IsValid() && !string.IsNullOrEmpty(players[i].displayName))
+                    {
+                        if (NormalizePlayerNameForMatch(players[i].displayName) == normTarget)
+                        {
+                            return players[i].displayName;
+                        }
+                    }
+                }
+            }
+        }
+        return trimmed;
+    }
+
+    /// <summary>
     /// リスト限定モード時に [MVP_DTC] の出力対象とする配列 (StaffNames + PlayerNames の重複なし結合配列) を構築する
     /// </summary>
     private string[] BuildListModeDtcTargetArray(string[] playerNames, string[] masterNames)
@@ -1772,7 +1855,7 @@ public class SurveyManager : UdonSharpBehaviour
             {
                 if (!string.IsNullOrEmpty(masterNames[i]))
                 {
-                    string name = masterNames[i].Trim();
+                    string name = ResolveActualPlayerDisplayName(masterNames[i]);
                     if (!string.IsNullOrEmpty(name) && !ContainsNameIgnoreCase(temp, count, name))
                     {
                         temp[count] = name;
@@ -1789,7 +1872,7 @@ public class SurveyManager : UdonSharpBehaviour
             {
                 if (!string.IsNullOrEmpty(allowedUserNames[i]))
                 {
-                    string name = allowedUserNames[i].Trim();
+                    string name = ResolveActualPlayerDisplayName(allowedUserNames[i]);
                     if (!string.IsNullOrEmpty(name) && !ContainsNameIgnoreCase(temp, count, name))
                     {
                         temp[count] = name;
@@ -1806,7 +1889,7 @@ public class SurveyManager : UdonSharpBehaviour
             {
                 if (!string.IsNullOrEmpty(playerNames[i]))
                 {
-                    string name = playerNames[i].Trim();
+                    string name = ResolveActualPlayerDisplayName(playerNames[i]);
                     if (!string.IsNullOrEmpty(name) && !ContainsNameIgnoreCase(temp, count, name))
                     {
                         temp[count] = name;
@@ -1826,15 +1909,48 @@ public class SurveyManager : UdonSharpBehaviour
 
     private bool ContainsNameIgnoreCase(string[] arr, int currentCount, string target)
     {
-        string targetLower = target.ToLower();
+        string targetNorm = NormalizePlayerNameForMatch(target);
         for (int i = 0; i < currentCount; i++)
         {
-            if (arr[i] != null && arr[i].ToLower() == targetLower)
+            if (arr[i] != null && NormalizePlayerNameForMatch(arr[i]) == targetNorm)
             {
                 return true;
             }
         }
         return false;
+    }
+
+    /// <summary>
+    /// MVP_DTC_Online 側の JSON 読み込みが 1.0 秒より遅れた場合や、途中参加・括弧表記揺れ等で
+    /// MVP_DTC_Online の初回 LoopEvent (1.0s) が停止してしまった場合に、安全に LoopEvent を再開させる
+    /// </summary>
+    public void EnsureDtcLoopEventRunning()
+    {
+        if (targetUdonBehaviour == null) return;
+
+        // MVP_DTC_Online 自身の _start で予約された初回 LoopEvent (1.0秒後) が実行し終わるまでは待機し、二重起動を防止する
+        if (Time.timeSinceLevelLoad < 1.5f)
+        {
+            SendCustomEventDelayedSeconds(nameof(EnsureDtcLoopEventRunning), 1.6f - Time.timeSinceLevelLoad);
+            return;
+        }
+
+        VRCPlayerApi localPlayer = Networking.LocalPlayer;
+        if (localPlayer == null || !localPlayer.IsValid()) return;
+
+        string localName = localPlayer.displayName;
+        if (!CheckIfRecordMaster(localName)) return;
+
+        object staffBoolObj = targetUdonBehaviour.GetProgramVariable("StaffBool");
+        bool currentStaffBool = (staffBoolObj != null) ? (bool)staffBoolObj : false;
+
+        if (!currentStaffBool && !hasRevivedDtcLoopEvent)
+        {
+            hasRevivedDtcLoopEvent = true;
+            targetUdonBehaviour.SetProgramVariable("StaffBool", true);
+            targetUdonBehaviour.SendCustomEvent("LoopEvent");
+            Debug.Log("[SurveyManager] MVP_DTC_Online の LoopEvent を自動開始・再開しました。");
+        }
     }
 
     /// <summary>
@@ -1854,6 +1970,43 @@ public class SurveyManager : UdonSharpBehaviour
         if (currentArr != null && currentArr != lastAppliedDtcNamesArray)
         {
             cachedOriginalJsonNames = currentArr;
+        }
+
+        // RecordMasterNames の変化を常時監視し、何秒後に Gist (VRCanswers.json) が読み込まれても即座にUIとLoopEventへ反映する
+        string[] currentMasterNames = null;
+        if (!string.IsNullOrEmpty(recordMasterVariableName))
+        {
+            object masterObj = targetUdonBehaviour.GetProgramVariable(recordMasterVariableName);
+            if (masterObj != null)
+            {
+                currentMasterNames = (string[])masterObj;
+            }
+        }
+
+        bool masterListChanged = (currentMasterNames != lastObservedMasterNamesForEvents);
+        bool playerListChanged = (cachedOriginalJsonNames != lastObservedPlayerNamesForEvents);
+
+        if (masterListChanged || playerListChanged)
+        {
+            lastObservedMasterNamesForEvents = currentMasterNames;
+            lastObservedPlayerNamesForEvents = cachedOriginalJsonNames;
+
+            // もし RecordMasterNames 内にローカルプレイヤーと括弧違い等で一致する名前があれば、
+            // MVP_DTC_Online 側の == 判定でも通るよう実 displayName に補正しておく
+            VRCPlayerApi lp = Networking.LocalPlayer;
+            if (currentMasterNames != null && lp != null && lp.IsValid() && !string.IsNullOrEmpty(lp.displayName))
+            {
+                string lpNorm = NormalizePlayerNameForMatch(lp.displayName);
+                for (int i = 0; i < currentMasterNames.Length; i++)
+                {
+                    if (!string.IsNullOrEmpty(currentMasterNames[i]) &&
+                        NormalizePlayerNameForMatch(currentMasterNames[i]) == lpNorm &&
+                        currentMasterNames[i] != lp.displayName)
+                    {
+                        currentMasterNames[i] = lp.displayName;
+                    }
+                }
+            }
         }
 
         if (syncedDtcTargetAllMode)
@@ -1879,16 +2032,6 @@ public class SurveyManager : UdonSharpBehaviour
         else
         {
             // リスト限定モード: StaffNames (RecordMasterNames) と PlayerNames (cachedOriginalJsonNames) の両方を出力対象にする
-            string[] currentMasterNames = null;
-            if (!string.IsNullOrEmpty(recordMasterVariableName))
-            {
-                object masterObj = targetUdonBehaviour.GetProgramVariable(recordMasterVariableName);
-                if (masterObj != null)
-                {
-                    currentMasterNames = (string[])masterObj;
-                }
-            }
-
             if (lastAppliedModeState != 0 ||
                 lastAppliedDtcNamesArray == null ||
                 lastBuiltListModePlayerNames != cachedOriginalJsonNames ||
@@ -1905,6 +2048,15 @@ public class SurveyManager : UdonSharpBehaviour
             {
                 targetUdonBehaviour.SetProgramVariable(jsonNamesVariableName, lastAppliedDtcNamesArray);
             }
+        }
+
+        // Gist のダウンロード完了等でリストが更新された瞬間に、主催者パネル表示・アンケート対象判定・DTC LoopEvent を即時更新
+        if (masterListChanged || playerListChanged)
+        {
+            RefreshMasterPanelVisibility();
+            CheckAndRestoreSurveyForLocalUser();
+            CheckAndRestoreDtcConsentForLocalUser();
+            EnsureDtcLoopEventRunning();
         }
     }
 
@@ -1963,17 +2115,17 @@ public class SurveyManager : UdonSharpBehaviour
     private bool IsPlayerPresentInInstance(string pName)
     {
         if (string.IsNullOrEmpty(pName)) return false;
-        string cleanPName = pName.Trim();
+        string cleanPNameNorm = NormalizePlayerNameForMatch(pName);
 
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         if (localPlayer == null || !localPlayer.IsValid())
         {
-            if (cleanPName.ToLower() == "localuser") return true;
+            if (cleanPNameNorm == "localuser") return true;
             if (allowedUserNames != null)
             {
                 for (int i = 0; i < allowedUserNames.Length; i++)
                 {
-                    if (allowedUserNames[i] != null && allowedUserNames[i].Trim().ToLower() == cleanPName.ToLower()) return true;
+                    if (allowedUserNames[i] != null && NormalizePlayerNameForMatch(allowedUserNames[i]) == cleanPNameNorm) return true;
                 }
             }
             return false;
@@ -1986,7 +2138,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             if (players[i] != null && players[i].IsValid())
             {
-                if (players[i].displayName != null && players[i].displayName.Trim().ToLower() == cleanPName.ToLower()) return true;
+                if (players[i].displayName != null && NormalizePlayerNameForMatch(players[i].displayName) == cleanPNameNorm) return true;
             }
         }
         return false;
@@ -4351,7 +4503,7 @@ public class SurveyManager : UdonSharpBehaviour
         if (localPlayer == null || !localPlayer.IsValid()) return true;
 
         if (string.IsNullOrEmpty(playerName)) return false;
-        string cleanName = playerName.Trim();
+        string cleanNameNorm = NormalizePlayerNameForMatch(playerName);
 
         // 1. 外部 UdonBehaviour の RecordMasterNames チェック
         if (targetUdonBehaviour != null && !string.IsNullOrEmpty(recordMasterVariableName))
@@ -4364,7 +4516,7 @@ public class SurveyManager : UdonSharpBehaviour
                 {
                     for (int i = 0; i < targetNames.Length; i++)
                     {
-                        if (targetNames[i] != null && targetNames[i].Trim().ToLower() == cleanName.ToLower())
+                        if (targetNames[i] != null && NormalizePlayerNameForMatch(targetNames[i]) == cleanNameNorm)
                         {
                             return true;
                         }
@@ -4378,7 +4530,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             for (int i = 0; i < allowedUserNames.Length; i++)
             {
-                if (allowedUserNames[i] != null && allowedUserNames[i].Trim().ToLower() == cleanName.ToLower())
+                if (allowedUserNames[i] != null && NormalizePlayerNameForMatch(allowedUserNames[i]) == cleanNameNorm)
                 {
                     return true;
                 }
@@ -4397,7 +4549,7 @@ public class SurveyManager : UdonSharpBehaviour
         }
 
         if (string.IsNullOrEmpty(playerName)) return false;
-        string cleanName = playerName.Trim();
+        string cleanNameNorm = NormalizePlayerNameForMatch(playerName);
 
         bool hasTargetData = false;
 
@@ -4422,7 +4574,7 @@ public class SurveyManager : UdonSharpBehaviour
                 hasTargetData = true;
                 for (int i = 0; i < targetNames.Length; i++)
                 {
-                    if (targetNames[i] != null && targetNames[i].Trim().ToLower() == cleanName.ToLower())
+                    if (targetNames[i] != null && NormalizePlayerNameForMatch(targetNames[i]) == cleanNameNorm)
                     {
                         return true;
                     }
@@ -4434,7 +4586,7 @@ public class SurveyManager : UdonSharpBehaviour
         {
             for (int i = 0; i < allowedUserNames.Length; i++)
             {
-                if (allowedUserNames[i] != null && allowedUserNames[i].Trim().ToLower() == cleanName.ToLower())
+                if (allowedUserNames[i] != null && NormalizePlayerNameForMatch(allowedUserNames[i]) == cleanNameNorm)
                 {
                     return true;
                 }
