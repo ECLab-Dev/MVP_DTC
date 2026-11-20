@@ -224,8 +224,15 @@ public class SurveyManager : UdonSharpBehaviour
 
     // オンラインJSON読み込み状態管理
     private bool isOnlineJsonLoaded = false;
+    private bool isJsonLoadInProgress = false;
+    private bool isJsonRetryScheduled = false;
     private string onlineJsonStatusMessage = "";
     private int jsonLoadRetryCount = 0;
+
+    // アンケートリセットボタンのクールダウン管理 (7秒間再押下不可＆残り秒数カウントダウン表示)
+    private const float ResetButtonCooldownDuration = 7.0f;
+    private float resetButtonCooldownEndTime = -1f;
+    private int lastDisplayedResetCooldownSeconds = -1;
 
     void Start()
     {
@@ -243,6 +250,10 @@ public class SurveyManager : UdonSharpBehaviour
 
         // ワールド開始直後から外部 UdonBehaviour (MVP_DTC_Online) の対象リストをモードに合わせて即時制御
         SyncDtcTargetsToUdonBehaviour();
+
+        // ワールド開始直後の初回通信保護としてリセットボタンにも7秒クールダウンを設定
+        resetButtonCooldownEndTime = Time.time + ResetButtonCooldownDuration;
+        lastDisplayedResetCooldownSeconds = -1;
 
         // ワールド開始時にオンラインJSONからアンケート設定を読み込む
         // ※ MVP_DTC_Online 側の VRCStringDownloader.LoadUrl (VRCanswers.json) と
@@ -322,6 +333,10 @@ public class SurveyManager : UdonSharpBehaviour
     void Update()
     {
         SyncDtcTargetsToUdonBehaviour();
+        if (resetButtonCooldownEndTime > 0f || lastDisplayedResetCooldownSeconds != 0)
+        {
+            UpdateResetButtonCooldownUI();
+        }
     }
 
     public override void PostLateUpdate()
@@ -335,6 +350,7 @@ public class SurveyManager : UdonSharpBehaviour
 
     /// <summary>
     /// 指定された surveyJsonUrl からアンケート質問データのJSONを非同期ダウンロードする
+    /// （成功するまで OnStringLoadError で自動リトライを行う）
     /// </summary>
     public void LoadSurveyJsonFromUrl()
     {
@@ -354,17 +370,49 @@ public class SurveyManager : UdonSharpBehaviour
             return;
         }
 
-        onlineJsonStatusMessage = "<color=#70D6FF>⏳ オンラインJSON読込中...</color>";
+        // 既に読み込み完了している場合や、現在リクエスト通信中の場合は重複送信しない
+        if (isOnlineJsonLoaded || isJsonLoadInProgress)
+        {
+            return;
+        }
+
+        isJsonLoadInProgress = true;
+        if (jsonLoadRetryCount == 0)
+        {
+            onlineJsonStatusMessage = "<color=#70D6FF>⏳ オンラインJSON読込中...</color>";
+        }
+        else
+        {
+            onlineJsonStatusMessage = $"<color=#70D6FF>⏳ オンラインJSON再試行中 ({jsonLoadRetryCount}回目)...</color>";
+        }
         UpdateMasterStatusText();
         VRCStringDownloader.LoadUrl(surveyJsonUrl, (IUdonEventReceiver)this);
     }
 
     public void RetryLoadSurveyJson()
     {
+        isJsonRetryScheduled = false;
         if (!isOnlineJsonLoaded && useOnlineSurveyJson)
         {
             LoadSurveyJsonFromUrl();
         }
+    }
+
+    private void ScheduleSurveyJsonRetry()
+    {
+        if (isOnlineJsonLoaded || isJsonRetryScheduled || !useOnlineSurveyJson)
+        {
+            return;
+        }
+
+        isJsonRetryScheduled = true;
+        jsonLoadRetryCount++;
+        int fallbackLen = (questionTexts != null) ? questionTexts.Length : 0;
+        onlineJsonStatusMessage = $"<color=#FFB300>⏳ JSON読込リトライ待機中 ({jsonLoadRetryCount}回目 / 完了までエディタ設定 全{fallbackLen}問を使用)</color>";
+        UpdateMasterStatusText();
+
+        // VRChatのレート制限解放を待って再試行（成功するまで繰り返す）
+        SendCustomEventDelayedSeconds(nameof(RetryLoadSurveyJson), 3.0f);
     }
 
     /// <summary>
@@ -400,12 +448,12 @@ public class SurveyManager : UdonSharpBehaviour
 
     public override void OnStringLoadSuccess(IVRCStringDownload result)
     {
+        isJsonLoadInProgress = false;
+
         if (result == null || string.IsNullOrEmpty(result.Result))
         {
-            int fallbackLen = (questionTexts != null) ? questionTexts.Length : 0;
-            Debug.LogWarning("[SurveyManager] オンラインJSONのレスポンスが空です。Inspectorの設定値を使用します。");
-            onlineJsonStatusMessage = $"<color=#FFB300>⚠️ JSONが空です (エディタ設定 全{fallbackLen}問を使用中)</color>";
-            UpdateMasterStatusText();
+            Debug.LogWarning("[SurveyManager] オンラインJSONのレスポンスが空です。リトライを予約します。");
+            ScheduleSurveyJsonRetry();
             return;
         }
 
@@ -446,23 +494,13 @@ public class SurveyManager : UdonSharpBehaviour
 
     public override void OnStringLoadError(IVRCStringDownload result)
     {
+        isJsonLoadInProgress = false;
+
         int errCode = (result != null) ? result.ErrorCode : -1;
         string errMsg = (result != null) ? result.Error : "Unknown";
-        Debug.LogWarning($"[SurveyManager] オンラインJSONの読み込みに失敗しました (Code {errCode}): {errMsg}");
+        Debug.LogWarning($"[SurveyManager] オンラインJSONの読み込みに失敗しました (Code {errCode}): {errMsg} -> 成功するまで自動リトライします。");
 
-        if (jsonLoadRetryCount < 2)
-        {
-            jsonLoadRetryCount++;
-            onlineJsonStatusMessage = $"<color=#FFB300>⏳ JSON読込リトライ待機中 ({jsonLoadRetryCount}/2)...</color>";
-            SendCustomEventDelayedSeconds(nameof(RetryLoadSurveyJson), 5.0f);
-        }
-        else
-        {
-            int fallbackLen = (questionTexts != null) ? questionTexts.Length : 0;
-            onlineJsonStatusMessage = $"<color=#FF6B6B>⚠️ JSON読込エラー({errCode}) - エディタ設定(全{fallbackLen}問)を使用中</color>";
-        }
-
-        UpdateMasterStatusText();
+        ScheduleSurveyJsonRetry();
     }
 
     /// <summary>
@@ -2941,6 +2979,71 @@ public class SurveyManager : UdonSharpBehaviour
                 }
             }
         }
+
+        UpdateResetButtonCooldownUI();
+    }
+
+    /// <summary>
+    /// アンケートリセットボタンのクールダウン状態（7秒間押下不可＆残り秒数カウントダウン）をUIに反映する
+    /// </summary>
+    private void UpdateResetButtonCooldownUI()
+    {
+        if (resetSurveyButton == null)
+        {
+            if (masterControlPanel != null)
+            {
+                Transform t = masterControlPanel.transform.Find("Btn_ResetSurvey");
+                if (t == null) t = masterControlPanel.transform.Find("Btn_Reset");
+                if (t != null) resetSurveyButton = t.GetComponent<Button>();
+            }
+            if (resetSurveyButton == null) return;
+        }
+
+        float remaining = resetButtonCooldownEndTime - Time.time;
+        if (remaining > 0f)
+        {
+            int remainSec = Mathf.CeilToInt(remaining);
+            if (resetSurveyButton.interactable || remainSec != lastDisplayedResetCooldownSeconds)
+            {
+                lastDisplayedResetCooldownSeconds = remainSec;
+                resetSurveyButton.interactable = false;
+
+                Text resetTxt = resetSurveyButton.GetComponentInChildren<Text>();
+                if (resetTxt != null)
+                {
+                    resetTxt.text = $"⏳ アンケートリセット (あと{remainSec}秒)";
+                    resetTxt.color = new Color(0.75f, 0.75f, 0.75f, 1.0f);
+                }
+
+                Image resetImg = resetSurveyButton.GetComponent<Image>();
+                if (resetImg != null)
+                {
+                    resetImg.color = new Color(0.35f, 0.25f, 0.2f, 1.0f);
+                }
+            }
+        }
+        else
+        {
+            if (!resetSurveyButton.interactable || lastDisplayedResetCooldownSeconds != 0)
+            {
+                lastDisplayedResetCooldownSeconds = 0;
+                resetButtonCooldownEndTime = -1f;
+                resetSurveyButton.interactable = true;
+
+                Text resetTxt = resetSurveyButton.GetComponentInChildren<Text>();
+                if (resetTxt != null)
+                {
+                    resetTxt.text = "🔄 アンケートリセット";
+                    resetTxt.color = Color.white;
+                }
+
+                Image resetImg = resetSurveyButton.GetComponent<Image>();
+                if (resetImg != null)
+                {
+                    resetImg.color = new Color(0.85f, 0.4f, 0.2f, 1.0f);
+                }
+            }
+        }
     }
 
     public void OnStartSurveyButton()
@@ -3004,6 +3107,12 @@ public class SurveyManager : UdonSharpBehaviour
     {
         EnsureUIReferences();
 
+        if (Time.time < resetButtonCooldownEndTime)
+        {
+            UpdateResetButtonCooldownUI();
+            return;
+        }
+
         VRCPlayerApi localPlayer = Networking.LocalPlayer;
         string playerName = (localPlayer != null && localPlayer.IsValid()) ? localPlayer.displayName : "LocalUser";
 
@@ -3012,6 +3121,10 @@ public class SurveyManager : UdonSharpBehaviour
             Debug.LogWarning("[SurveyManager] アンケートリセット権限がありません。");
             return;
         }
+
+        resetButtonCooldownEndTime = Time.time + ResetButtonCooldownDuration;
+        lastDisplayedResetCooldownSeconds = -1;
+        UpdateResetButtonCooldownUI();
 
         if (localPlayer != null && localPlayer.IsValid())
         {
@@ -3064,6 +3177,11 @@ public class SurveyManager : UdonSharpBehaviour
         // 全回答者の画面からアンケートパネルおよび完了結果パネルを即座に消す（非表示）
         if (surveyPanel != null) surveyPanel.SetActive(false);
         if (resultPanel != null) resultPanel.SetActive(false);
+
+        // リセット実行後7秒間は再押下できないようクールダウンを設定
+        resetButtonCooldownEndTime = Time.time + ResetButtonCooldownDuration;
+        lastDisplayedResetCooldownSeconds = -1;
+        UpdateResetButtonCooldownUI();
 
         // リセット時にオンラインJSONも再取得して最新の質問を反映
         isOnlineJsonLoaded = false;
